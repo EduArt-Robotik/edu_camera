@@ -15,6 +15,10 @@ find_package(cv_bridge REQUIRED)
 find_package(image_transport REQUIRED)
 find_package(camera_info_manager REQUIRED)
 find_package(OpenCV REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(GSTREAMER REQUIRED gstreamer-1.0)
+pkg_check_modules(GSTREAMER_APP REQUIRED gstreamer-app-1.0)
+pkg_check_modules(GSTREAMER_VIDEO REQUIRED gstreamer-video-1.0)
 
 # Building Libraries
 add_subdirectory(src/lib)
@@ -33,6 +37,19 @@ install(
 #     parameter
 #   DESTINATION share/${PROJECT_NAME}
 # )
+
+message(STATUS "Nodes: ${BUILT_NODES}")
+install(
+  TARGETS
+    ${BUILT_NODES}
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib
+  # for humble...
+  # RUNTIME DESTINATION bin
+  # for galactic...
+  RUNTIME DESTINATION lib/${PROJECT_NAME}
+  INCLUDES DESTINATION include
+)
 
 message(STATUS "Libraries: ${BUILT_LIBRARIES}")
 install(
