@@ -1,7 +1,13 @@
-#ifndef EDU_CAMERA_VIDEO_STREAM_VIDEO_STREAM_SERVER_HPP
-#define EDU_CAMERA_VIDEO_STREAM_VIDEO_STREAM_SERVER_HPP
+/**
+ * Copyright EduArt Robotik GmbH 2022
+ * This class is copied from https://github.com/franc0r/libfrancor/blob/master/francor_base/include/francor_base/angle.h
+ *
+ * Author: Christian Wendt (christian.wendt@eduart-robotik.com)
+ */
+#pragma once
 
 #include <opencv2/opencv.hpp>
+
 #include <memory>
 #include <thread>
 #include <atomic>
@@ -9,7 +15,8 @@
 #include <mutex>
 #include <condition_variable>
 
-namespace edu_camera {
+namespace eduart {
+namespace camera {
 namespace video_stream {
 
 /**
@@ -32,38 +39,32 @@ struct NetworkMetrics {
 };
 
 /**
- * @brief VideoStreamServer - Streams cv::Mat over RTMP with adaptive bitrate
+ * @brief Defines a interface for a video streaming server. And it provides basic functionality like the
+ *        adaptive metric handling.
  */
-class VideoStreamServer {
+class VideoStreamServer
+{
 public:
-  /**
-   * @brief Constructor
-   * @param rtmp_url RTMP server URL (e.g., "rtmp://192.168.1.100:1935/live/stream")
-   * @param initial_bitrate Initial bitrate in kbps (default: 2500)
-   */
-  VideoStreamServer(const std::string& rtmp_url, int initial_bitrate = 2500);
-  
-  /**
-   * @brief Destructor
-   */
-  ~VideoStreamServer();
+  VideoStreamServer();
+  virtual ~VideoStreamServer();
   
   /**
    * @brief Initialize the streamer
    * @return true if initialization successful
    */
-  bool initialize();
+  virtual bool initialize() = 0;
   
   /**
    * @brief Shutdown the streamer
    */
-  void shutdown();
+  virtual void shutdown() = 0;
   
   /**
    * @brief Send a frame to the stream
    * @param frame cv::Mat frame to send
    * @return true if frame was sent successfully
    */
+  // \todo what is with a codec frame?
   bool send_frame(const cv::Mat& frame);
   
   /**
@@ -137,6 +138,5 @@ private:
 };
 
 } // namespace video_stream
-} // namespace edu_camera
-
-#endif // EDU_CAMERA_VIDEO_STREAM_VIDEO_STREAM_SERVER_HPP
+} // namespace camera
+} // namespace eduart
