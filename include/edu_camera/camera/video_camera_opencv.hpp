@@ -16,15 +16,21 @@ namespace camera {
 class VideoCameraOpenCV : public camera::VideoCamera
 {
 public:
-  VideoCameraOpenCV(int device_id = 0);
+  struct Parameter : public camera::VideoCamera::Parameter {
+    int device_id = 0;
+  };
+
+  VideoCameraOpenCV(const Parameter& parameter);
   ~VideoCameraOpenCV() override;
 
-  bool open(const video_stream::QualitySettings& settings) override;
+  bool open() override;
   void close() override;
   cv::Mat captureFrame() override;
 
+  static Parameter get_parameter(const Parameter& default_parameter, rclcpp::Node& ros_node);
+
 private:
-  int _device_id;
+  const Parameter _parameter;
   cv::VideoCapture _camera_device;
 };
 

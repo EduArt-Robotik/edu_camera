@@ -15,8 +15,10 @@ namespace eduart {
 namespace camera {
 namespace video_stream {
 
-VideoGstreamOutput::VideoGstreamOutput(const ::std::string& host, int port)
-  : _host(host)
+VideoGstreamOutput::VideoGstreamOutput(
+  const ::std::string& destination, int port, const camera::VideoCamera::Parameter& camera_parameter)
+  : VideoStreamOutput(camera_parameter)
+  , _destination(destination)
   , _port(port)
 {
   // Initialize GStreamer
@@ -36,6 +38,7 @@ void VideoGstreamOutput::initializePipeline()
   }
 
   const auto& settings = getQualitySettings();
+  const auto& camera_parameter = getCameraParameter();
   
   // Create pipeline elements
   _pipeline     = gst_pipeline_new("video-output-pipeline");
@@ -56,10 +59,10 @@ void VideoGstreamOutput::initializePipeline()
   // Configure appsrc
   g_object_set(G_OBJECT(_appsrc),
     "caps", gst_caps_new_simple("video/x-raw",
-      "format", G_TYPE_STRING, "BGR",
-      "width", G_TYPE_INT, settings.width,
-      "height", G_TYPE_INT, settings.height,
-      "framerate", GST_TYPE_FRACTION, settings.fps, 1,
+      "format", G_TYPE_STRING, camera_parameter.codec.to_string().c_str(),
+      "width", G_TYPE_INT, camera_parameter.resolution.width,
+      "height", G_TYPE_INT, camera_parameter.resolution.height,
+      "framerate", GST_TYPE_FRACTION, camera_parameter.fps, 1,
       nullptr),
     "stream-type", 0, // GST_APP_STREAM_TYPE_STREAM
     "format", GST_FORMAT_TIME,
@@ -81,7 +84,7 @@ void VideoGstreamOutput::initializePipeline()
 
   // Configure UDP sink
   g_object_set(G_OBJECT(_udpsink),
-    "host", _host.c_str(),
+    "host", _destination.c_str(),
     "port", _port,
     nullptr);
 
@@ -108,7 +111,7 @@ void VideoGstreamOutput::initializePipeline()
   _is_initialized = true;
   RCLCPP_INFO(
     rclcpp::get_logger("VideoGstreamOutput"),
-    "GStreamer output pipeline initialized (UDP to %s:%d, bitrate: %d kbps)", _host.c_str(), _port, settings.bitrate
+    "GStreamer output pipeline initialized (UDP to %s:%d, bitrate: %d kbps)", _destination.c_str(), _port, settings.bitrate
   );
 }
 

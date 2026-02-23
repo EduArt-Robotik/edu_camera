@@ -18,7 +18,8 @@ namespace video_stream {
 class VideoGstreamOutput : public VideoStreamOutput
 {
 public:
-  VideoGstreamOutput(const ::std::string& host = "127.0.0.1", int port = 5000);
+  VideoGstreamOutput(
+    const std::string& destination = "127.0.0.1", int port = 5000, const camera::VideoCamera::Parameter& camera_parameter = {});
   ~VideoGstreamOutput() override;
 
   void encodeAndSendFrame(const cv::Mat& frame) override;
@@ -35,7 +36,7 @@ private:
   GstElement* _rtph264pay   = nullptr;
   GstElement* _udpsink      = nullptr;
   
-  std::string _host = "127.0.0.1";
+  std::string _destination = "127.0.0.1";
   int _port = 5000;
   bool _is_initialized = false;
   cv::Size _frame_size{0, 0};
