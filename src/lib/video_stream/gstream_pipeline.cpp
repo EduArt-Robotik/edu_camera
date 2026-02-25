@@ -4,12 +4,13 @@
 #include <gst/app/gstappsrc.h>
 #include <gst/app/gstappsink.h>
 
+#include <opencv2/highgui.hpp>
+
 namespace eduart {
 namespace camera {
 namespace video_stream {
 
 GstreamPipeline::GstreamPipeline()
-
 {
   // Initialize GStreamer
   gst_init(nullptr, nullptr);
@@ -58,6 +59,11 @@ void GstreamPipeline::sendFrame(const cv::Mat& frame, const Codec codec)
   if (++_buffer_index >= BUFFER_SIZE) {
     _buffer_index = 0;
   }
+  // std::cout << "buffer index: " << _buffer_index << std::endl;
+  // std::cout << "frame size: " << frame.cols << "x" << frame.rows << std::endl;
+  // std::cout << "frame elem size: " << frame.elemSize() << " bytes" << std::endl;
+  // std::cout << "frame total bytes: " << frame.total() * frame.elemSize() << std::endl;
+
   if (_frame_sent[_buffer_index] == false) {
     RCLCPP_WARN(rclcpp::get_logger("GstreamPipeline"), "frame buffer overflow, dropping frame");
     return;
@@ -94,32 +100,81 @@ void GstreamPipeline::sendFrame(const cv::Mat& frame, const Codec codec)
   if (ret != GST_FLOW_OK) {
     RCLCPP_ERROR(rclcpp::get_logger("GstreamPipeline"), "failed to push buffer to appsrc (GstFlowReturn=%d)", ret);
   }
+  // std::cout << "pushed buffer to appsrc" << std::endl;
 }
 
-GstreamPipelineBuilder::GstreamPipelineBuilder(const camera::VideoCamera::Parameter& camera_parameter)
+
+
+
+GstreamPipelineBuilder::GstreamPipelineBuilder(const camera::VideoCamera::Parameter& camera_parameter, const Codec input_codec)
 {
   _pipeline = std::make_unique<GstreamPipeline>();
   _pipeline->_pipeline = gst_pipeline_new("video-output-pipeline");
 
   // App source (entry point of pipeline)
   auto appsrc = gst_element_factory_make("appsrc", "source");
+  const auto format_str = input_codec.to_string();
+  GstCaps* caps = nullptr;
 
-  g_object_set(G_OBJECT(appsrc),
-    "caps", gst_caps_new_simple("video/x-raw",
-      "format", G_TYPE_STRING, camera_parameter.codec.to_string().c_str(),
+  // if (camera_parameter.codec.type() == Codec::Type::MJPEG) {
+  //   // mjpeg compressed video
+  //   caps = gst_caps_new_simple("video/x-jpeg",
+  //     "width", G_TYPE_INT, camera_parameter.resolution.width,
+  //     "height", G_TYPE_INT, camera_parameter.resolution.height,
+  //     "framerate", GST_TYPE_FRACTION, static_cast<int>(camera_parameter.fps), 1,
+  //     nullptr
+  //   );
+  // }
+  // else {
+    // raw video + mjpeg because opencv captures mjpeg as raw frames
+    caps = gst_caps_new_simple("video/x-raw",
+      "format", G_TYPE_STRING, format_str.c_str(),
       "width", G_TYPE_INT, camera_parameter.resolution.width,
       "height", G_TYPE_INT, camera_parameter.resolution.height,
-      "framerate", GST_TYPE_FRACTION, camera_parameter.fps, 1,
-      nullptr),
+      "framerate", GST_TYPE_FRACTION, static_cast<int>(camera_parameter.fps), 1,
+      nullptr
+    );
+  // }
+
+  g_object_set(G_OBJECT(appsrc),
+    "caps", caps,
     "stream-type", 0, // GST_APP_STREAM_TYPE_STREAM
     "format", GST_FORMAT_TIME,
     "is-live", TRUE,
     nullptr
   );
+  gst_caps_unref(caps);
 
   _pipeline->_elements["source"] = appsrc;
   _pipeline->_element_order.push_back(appsrc);
   _pipeline->_frame_size = camera_parameter.resolution;
+}
+
+GstreamPipelineBuilder& GstreamPipelineBuilder::addDecoderMJpeg(const std::string& name)
+{
+  auto decoder = gst_element_factory_make("jpegdec", name.c_str());
+  _pipeline->_elements[name] = decoder;
+  _pipeline->_element_order.push_back(decoder);
+
+  return *this;
+}
+
+GstreamPipelineBuilder& GstreamPipelineBuilder::addCapFilter(const std::string& name, const int width, const int height)
+{
+  auto capfilter = gst_element_factory_make("capsfilter", name.c_str());
+  _pipeline->_elements[name] = capfilter;
+  _pipeline->_element_order.push_back(capfilter);
+
+  // Configure caps filter with specified width and height
+  auto caps = gst_caps_new_simple("video/x-raw",
+    "width", G_TYPE_INT, width,
+    "height", G_TYPE_INT, height,
+    nullptr
+  );
+  g_object_set(G_OBJECT(capfilter), "caps", caps, nullptr);
+  gst_caps_unref(caps);
+
+  return *this;
 }
 
 GstreamPipelineBuilder& GstreamPipelineBuilder::addVideoConvert(const std::string& name)
@@ -206,6 +261,17 @@ std::unique_ptr<GstreamPipeline> GstreamPipelineBuilder::build()
       );
       return nullptr;
     }
+  }
+
+  // Set pipeline to playing state
+  GstStateChangeReturn ret = gst_element_set_state(_pipeline->_pipeline, GST_STATE_PLAYING);
+
+  if (ret == GST_STATE_CHANGE_FAILURE) {
+    RCLCPP_ERROR(rclcpp::get_logger("GstreamPipelineBuilder"), "failed to set GStreamer pipeline to PLAYING state");
+    return nullptr;
+  }
+  else {
+    RCLCPP_INFO(rclcpp::get_logger("GstreamPipelineBuilder"), "GStreamer pipeline set to PLAYING state");
   }
 
   return std::move(_pipeline);

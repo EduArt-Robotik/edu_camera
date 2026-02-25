@@ -6,9 +6,8 @@
 #pragma once
 
 #include "edu_camera/video_stream/video_stream.hpp"
+#include "edu_camera/video_stream/gstream_pipeline.hpp"
 
-#include <gst/gst.h>
-#include <gst/app/gstappsrc.h>
 #include <string>
 
 namespace eduart {
@@ -18,29 +17,34 @@ namespace video_stream {
 class VideoGstreamOutput : public VideoStreamOutput
 {
 public:
+  struct PipelineElement {
+    std::string name;
+    std::string type;
+  };
+
+  struct Parameter {
+    std::string destination = "127.0.0.1";
+    int port = 5000;
+    Codec input_codec = Codec(Codec::Type::BGR);
+    std::vector<PipelineElement> pipeline_elements;
+  };
+
   VideoGstreamOutput(
-    const std::string& destination = "127.0.0.1", int port = 5000, const camera::VideoCamera::Parameter& camera_parameter = {});
+    const Parameter& parameter, const camera::VideoCamera::Parameter& camera_parameter, const QualitySettings& quality_settings);
   ~VideoGstreamOutput() override;
 
-  void encodeAndSendFrame(const cv::Mat& frame) override;
+  void encodeAndSendFrame(const cv::Mat& frame, const Codec codec) override;
+
+  static Parameter get_parameter(const Parameter& default_parameter, rclcpp::Node& node);
 
 private:
-  void initializePipeline();
-  void cleanupPipeline();
+  void initialize();
+  void updateQualitySettings(const QualitySettings& metrics) override;
 
-  GstElement* _pipeline     = nullptr;
-  GstElement* _appsrc       = nullptr;
-  GstElement* _videoconvert = nullptr;
-  GstElement* _videoscale   = nullptr;
-  GstElement* _encoder      = nullptr;
-  GstElement* _rtph264pay   = nullptr;
-  GstElement* _udpsink      = nullptr;
+  std::unique_ptr<GstreamPipeline> _pipeline;
   
-  std::string _destination = "127.0.0.1";
-  int _port = 5000;
+  const Parameter _parameter;
   bool _is_initialized = false;
-  cv::Size _frame_size{0, 0};
-  GstBuffer* _gst_buffer = nullptr;
 };
 
 class VideoGstreamInput : public VideoStreamInput
@@ -52,15 +56,9 @@ public:
   void receiveFrameAndDecode(cv::Mat& frame) override;
 
 private:
-  void initializePipeline();
-  void cleanupPipeline();
+  void initialize();
 
-  GstElement* _pipeline     = nullptr;
-  GstElement* _udpsrc       = nullptr;
-  GstElement* _rtph264depay = nullptr;
-  GstElement* _decoder      = nullptr;
-  GstElement* _videoconvert = nullptr;
-  GstElement* _appsink      = nullptr;
+  std::unique_ptr<GstreamPipeline> _pipeline;
   
   int _port = 5000;
   bool _is_initialized = false;

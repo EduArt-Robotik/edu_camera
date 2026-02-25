@@ -6,7 +6,7 @@ namespace eduart {
 namespace camera {
 namespace camera {
 
-static int get_codec_prop(const video_stream::Codec& codec)
+static auto get_codec_prop(const video_stream::Codec& codec)
 {
   switch (codec.type()) {
     case video_stream::Codec::Type::H264:
@@ -38,16 +38,26 @@ bool VideoCameraOpenCV::open() {
   if (_camera_device.isOpened()) {
     return true; // Already opened
   }
-  if (_camera_device.open(_parameter.device_id) == false) {
+  if (_camera_device.open(_parameter.device_id, cv::CAP_V4L2) == false) {
     // \todo maybe just throw an exception here instead of returning false, since this is a critical error
     return false; // Failed to open camera
   }
 
-  _camera_device.set(cv::CAP_PROP_FRAME_WIDTH, _parameter.resolution.width);
-  _camera_device.set(cv::CAP_PROP_FRAME_HEIGHT, _parameter.resolution.height);
+  _camera_device.set(cv::CAP_PROP_FOURCC, get_codec_prop(_parameter.codec));
   _camera_device.set(cv::CAP_PROP_FPS, _parameter.fps);
   _camera_device.set(cv::CAP_PROP_BUFFERSIZE, 1); // Reduce latency by using a smaller buffer size
-  _camera_device.set(cv::CAP_PROP_FOURCC, get_codec_prop(_parameter.codec));
+  _camera_device.set(cv::CAP_PROP_FRAME_WIDTH, _parameter.resolution.width);
+  _camera_device.set(cv::CAP_PROP_FRAME_HEIGHT, _parameter.resolution.height);
+
+  int fourcc = static_cast<int>(_camera_device.get(cv::CAP_PROP_FOURCC));
+  char fourcc_str[] = {
+    static_cast<char>(fourcc & 0xFF),
+    static_cast<char>((fourcc >> 8) & 0xFF),
+    static_cast<char>((fourcc >> 16) & 0xFF),
+    static_cast<char>((fourcc >> 24) & 0xFF),
+    0
+  };
+  RCLCPP_INFO(rclcpp::get_logger("VideoCameraOpenCV"), "Camera FOURCC: %s (0x%08X)", fourcc_str, fourcc);
 
   RCLCPP_INFO(rclcpp::get_logger("VideoCameraOpenCV"), "camera opened successfully");
   RCLCPP_INFO(rclcpp::get_logger("VideoCameraOpenCV"), "resolution: %dx%d", _parameter.resolution.width, _parameter.resolution.height);

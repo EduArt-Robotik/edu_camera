@@ -10,23 +10,61 @@ using eduart::camera::camera::VideoCameraOpenCV;
 using eduart::camera::video_stream::QualitySettings;
 using eduart::camera::video_stream::VideoGstreamOutput;
 using eduart::camera::video_stream::VideoStreamServer;
+using eduart::camera::video_stream::Codec;
 
 int main(int argc, char *argv[])
 {
   rclcpp::init(argc, argv);
 
-  const QualitySettings settings{0, 1920, 1080, 30};
-  VideoCameraOpenCV camera(0);
-  VideoStreamServer stream_server(std::make_unique<VideoGstreamOutput>("127.0.0.1", 5000));
-  
-  if (!camera.open(settings)) {
+  const QualitySettings settings{10000, 1920, 1080, 30};
+  const VideoCameraOpenCV::Parameter camera_parameter = {
+    {
+      cv::Size2i(1920, 1080),
+      30.0f,
+      Codec(Codec::Type::MJPEG)
+      // Codec(Codec::Type::YUYV)
+    },
+    4
+  };
+  const VideoGstreamOutput::Parameter stream_parameter = {
+    "192.168.178.121",
+    5000,
+    Codec(Codec::Type::BGR),
+    { 
+      {"videoconvert", "videoconvert"},
+      {"videoscale", "videoscale"},
+      {"capfilter", "cap_filter"},
+      {"encoder", "encoder_h264"},
+      {"payloader", "rtp_payloader"},
+      {"sink", "udp_sink"}
+    }
+  };
+
+  VideoCameraOpenCV camera(camera_parameter);
+  VideoStreamServer stream_server(
+    std::make_unique<VideoGstreamOutput>(stream_parameter, camera_parameter, settings)
+  );
+
+  if (!camera.open()) {
     std::cerr << "Failed to open camera." << std::endl;
     return -1;
   }
 
+  double bitrate_kbps = 5000; // Example bitrate in kbps
+
+
   while (rclcpp::ok()) {
     const cv::Mat frame = camera.captureFrame();
-    stream_server.sendFrame(frame);
+    stream_server.sendFrame(frame, camera_parameter.codec);
+
+    // simulate bade network
+    // stream_server.setQualityManual(bitrate_kbps, 1920, 1080, 30);
+    
+    // bitrate_kbps -= 100; // Decrease bitrate to simulate worsening network conditions
+    // std::cout << "Current bitrate: " << bitrate_kbps << " kbps" << std::endl;
+    // if (bitrate_kbps < 500) {
+    //   bitrate_kbps = 5000; // Reset to maximum bitrate
+    // }
   }
 
   camera.close();

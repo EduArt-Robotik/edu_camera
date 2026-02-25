@@ -23,7 +23,10 @@ public:
    * @brief Construct a new Video Stream Output object
    * @param camera_parameter Camera parameters used to specify the source video quality.
    */
-  VideoStreamOutput(const camera::VideoCamera::Parameter& camera_parameter) : _camera_parameter(camera_parameter) { }
+  VideoStreamOutput(const camera::VideoCamera::Parameter& camera_parameter, const QualitySettings& quality_settings)
+    : _camera_parameter(camera_parameter)
+    , _video_stream_quality(quality_settings)
+  { }
   virtual ~VideoStreamOutput() = default;
 
   /**
@@ -40,7 +43,10 @@ public:
   inline camera::VideoCamera::Parameter getCameraParameter() const {
     return _camera_parameter;
   }
-  virtual void encodeAndSendFrame(const cv::Mat& frame) = 0;
+  virtual void encodeAndSendFrame(const cv::Mat& frame, const Codec codec) = 0;
+
+protected:
+  virtual void updateQualitySettings(const QualitySettings& metrics) = 0;
 
 private:
   const camera::VideoCamera::Parameter _camera_parameter;

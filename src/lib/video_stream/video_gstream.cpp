@@ -15,23 +15,65 @@ namespace eduart {
 namespace camera {
 namespace video_stream {
 
+VideoGstreamOutput::Parameter VideoGstreamOutput::get_parameter(const Parameter &default_parameter, rclcpp::Node &node)
+{
+  Parameter parameter = default_parameter;
+
+  node.declare_parameter<int>("pipeline.number_of_elements", 0);
+  const int number_of_elements = node.get_parameter("pipeline.number_of_elements").as_int();
+
+  if (number_of_elements <= 0) {
+    // no custom pipeline will be created --> use default
+    return parameter;
+  }
+
+  for (int i = 0; i < number_of_elements; ++i) {
+    const std::string prefix = "pipeline.element_" + std::to_string(i);
+
+    node.declare_parameter<std::string>(prefix + ".name", "none");
+    node.declare_parameter<std::string>(prefix + ".type", "none");
+    
+    PipelineElement element;
+
+    element.name = node.get_parameter(prefix + ".name").as_string();
+    element.type = node.get_parameter(prefix + ".type").as_string();
+
+    if (element.name == "none" || element.type == "none") {
+      RCLCPP_FATAL(
+        rclcpp::get_logger("VideoGstreamOutput"),
+        "it is required to define 'name' and 'type' for each element! name = '%s', type = '%s'.",
+        element.name.c_str(), element.type.c_str()
+      );
+    }
+
+    // element parameter are fine (or at least defined)
+    RCLCPP_INFO(
+      rclcpp::get_logger("VideoGstreamOutput"),
+      "add pipeline element to parameter. name = '%s', type = '%s', index = %i.",
+      element.name.c_str(), element.type.c_str(), i
+    );
+
+    parameter.pipeline_elements.emplace_back(std::move(element));
+  }
+
+  return parameter;
+}
+
 VideoGstreamOutput::VideoGstreamOutput(
-  const ::std::string& destination, int port, const camera::VideoCamera::Parameter& camera_parameter)
-  : VideoStreamOutput(camera_parameter)
-  , _destination(destination)
-  , _port(port)
+  const Parameter& parameter, const camera::VideoCamera::Parameter& camera_parameter, const QualitySettings& quality_settings)
+  : VideoStreamOutput(camera_parameter, quality_settings)
+  , _parameter(parameter)
 {
   // Initialize GStreamer
-  gst_init(nullptr, nullptr);
-  initializePipeline();
+  initialize();
 }
 
 VideoGstreamOutput::~VideoGstreamOutput()
 {
-  cleanupPipeline();
+
 }
 
-void VideoGstreamOutput::initializePipeline()
+void VideoGstreamOutput::initialize()
 {
   if (_is_initialized) {
     return;
@@ -40,108 +82,64 @@ void VideoGstreamOutput::initializePipeline()
   const auto& settings = getQualitySettings();
   const auto& camera_parameter = getCameraParameter();
   
-  // Create pipeline elements
-  _pipeline     = gst_pipeline_new("video-output-pipeline");
+  GstreamPipelineBuilder builder(camera_parameter, _parameter.input_codec);
 
-  _appsrc       = gst_element_factory_make("appsrc"      , "source");
-  _videoconvert = gst_element_factory_make("videoconvert", "convert");
-  _videoscale   = gst_element_factory_make("videoscale"  , "scale");
-  _encoder      = gst_element_factory_make("x264enc"     , "encoder");
-  _rtph264pay   = gst_element_factory_make("rtph264pay"  , "payloader");
-  _udpsink      = gst_element_factory_make("udpsink"     , "sink");
+  // _pipeline = builder.addVideoConvert("video_converter")
+  //                    .addVideoScale("video_scaler")
+  //                    .addEncoderH264("encoder", 5000)
+  //                    .addRtpPayloader("rtp_payloader")
+  //                    .addUdpSink("udp_sink", _parameter.destination, _parameter.port)
+  //                    .build();
 
-  if (!_pipeline || !_appsrc || !_videoconvert || !_videoscale || !_encoder || !_rtph264pay || !_udpsink) {
-    RCLCPP_ERROR(rclcpp::get_logger("VideoGstreamOutput"), "failed to create GStreamer elements");
-    cleanupPipeline();
-    return;
+  for (const auto& element : _parameter.pipeline_elements) {
+    if (element.type == "videoconvert") {
+      builder.addVideoConvert(element.name);
+    } else if (element.type == "videoscale") {
+      builder.addVideoScale(element.name);
+    } else if (element.type == "encoder_h264") {
+      builder.addEncoderH264(element.name, settings.bitrate);
+    } else if (element.type == "rtp_payloader") {
+      builder.addRtpPayloader(element.name);
+    } else if (element.type == "udp_sink") {
+      builder.addUdpSink(element.name, _parameter.destination, _parameter.port);
+    } else if (element.type == "decoder_mjpeg") {
+      builder.addDecoderMJpeg(element.name);
+    } else if (element.type == "cap_filter") {
+      builder.addCapFilter(element.name, camera_parameter.resolution.width, camera_parameter.resolution.height);
+    } else {
+      RCLCPP_FATAL(
+        rclcpp::get_logger("VideoGstreamOutput"), "unknown pipeline element type '%s' for element '%s'.",
+        element.type.c_str(), element.name.c_str()
+      );
+    }
   }
 
-  // Configure appsrc
-  g_object_set(G_OBJECT(_appsrc),
-    "caps", gst_caps_new_simple("video/x-raw",
-      "format", G_TYPE_STRING, camera_parameter.codec.to_string().c_str(),
-      "width", G_TYPE_INT, camera_parameter.resolution.width,
-      "height", G_TYPE_INT, camera_parameter.resolution.height,
-      "framerate", GST_TYPE_FRACTION, camera_parameter.fps, 1,
-      nullptr),
-    "stream-type", 0, // GST_APP_STREAM_TYPE_STREAM
-    "format", GST_FORMAT_TIME,
-    "is-live", TRUE,
-    nullptr);
-
-  // Configure encoder with bitrate from quality settings
-  g_object_set(G_OBJECT(_encoder),
-    "bitrate", settings.bitrate,  // bitrate in kbps
-    "tune", 0x00000004,  // zerolatency
-    "speed-preset", 1,   // ultrafast
-    nullptr);
-
-  // Configure RTP payloader
-  g_object_set(G_OBJECT(_rtph264pay),
-    "config-interval", 1,
-    "pt", 96,
-    nullptr);
-
-  // Configure UDP sink
-  g_object_set(G_OBJECT(_udpsink),
-    "host", _destination.c_str(),
-    "port", _port,
-    nullptr);
-
-  // Add elements to pipeline
-  gst_bin_add_many(GST_BIN(_pipeline), _appsrc, _videoconvert, _videoscale, _encoder, _rtph264pay, _udpsink, nullptr);
-
-  // Link elements
-  if (!gst_element_link_many(_appsrc, _videoconvert, _videoscale, _encoder, _rtph264pay, _udpsink, nullptr)) {
-    RCLCPP_ERROR(rclcpp::get_logger("VideoGstreamOutput"), "failed to link GStreamer elements.");
-    cleanupPipeline();
-    return;
-  }
-
-  // Start pipeline
-  GstStateChangeReturn ret = gst_element_set_state(_pipeline, GST_STATE_PLAYING);
-  if (ret == GST_STATE_CHANGE_FAILURE) {
-    RCLCPP_ERROR(rclcpp::get_logger("VideoGstreamOutput"), "failed to start GStreamer pipeline.");
-    cleanupPipeline();
-    return;
-  }
-
-  _gst_buffer = gst_buffer_new_allocate(nullptr, 1, nullptr);
-
+  _pipeline = builder.build();
   _is_initialized = true;
+
   RCLCPP_INFO(
     rclcpp::get_logger("VideoGstreamOutput"),
-    "GStreamer output pipeline initialized (UDP to %s:%d, bitrate: %d kbps)", _destination.c_str(), _port, settings.bitrate
+    "GStreamer output pipeline initialized (UDP to %s:%d, bitrate: %d kbps)",
+    _parameter.destination.c_str(), _parameter.port, settings.bitrate
   );
 }
 
-void VideoGstreamOutput::cleanupPipeline()
+void VideoGstreamOutput::updateQualitySettings(const QualitySettings& metrics)
 {
-  if (_pipeline) {
-    gst_element_set_state(_pipeline, GST_STATE_NULL);
-    gst_object_unref(_pipeline);
-    _pipeline = nullptr;
+  if (!_is_initialized) {
+    return;
   }
-  
-  // Child elements are automatically unreferenced when pipeline is unreferenced
-  _appsrc       = nullptr;
-  _videoconvert = nullptr;
-  _videoscale   = nullptr;
-  _encoder      = nullptr;
-  _rtph264pay   = nullptr;
-  _udpsink      = nullptr;
-
-  // Buffer
-  if (_gst_buffer) {
-    gst_buffer_unref(_gst_buffer);
-    _gst_buffer = nullptr;
+  if (_pipeline == nullptr) {
+    RCLCPP_ERROR(rclcpp::get_logger("VideoGstreamOutput"), "cannot update quality settings, pipeline is not initialized");
+    return;
   }
 
-  // Is now uninitialized
-  _is_initialized = false;
+  std::cout << "updating quality settings based on metrics: " << std::endl;
+  std::cout << "  bitrate: " << metrics.bitrate << " kbps" << std::endl;
+  _pipeline->set("encoder", "bitrate", metrics.bitrate);
 }
 
-void VideoGstreamOutput::encodeAndSendFrame(const cv::Mat& frame)
+void VideoGstreamOutput::encodeAndSendFrame(const cv::Mat& frame, const Codec codec)
 {
   if (frame.empty()) {
     return;
@@ -151,62 +149,13 @@ void VideoGstreamOutput::encodeAndSendFrame(const cv::Mat& frame)
   if (!_is_initialized) {
     throw std::runtime_error("GStreamer pipeline is not initialized.");
   }
-  // Ensure BGR format
-  if (frame.type() != CV_8UC3) {
-    RCLCPP_ERROR(rclcpp::get_logger("VideoGstreamOutput"), "unsupported frame format, expected CV_8UC3 (BGR).");
-    throw std::runtime_error("unsupported frame format, expected CV_8UC3 (BGR).");
-  }
 
-
-  // Putting frame data into GStreamer buffer
-  const size_t buffer_size = frame.total() * frame.elemSize();
-
-  // Adapt frame size if it differs to previous frames (and update appsrc caps)
-  if (frame.size() != _frame_size) {
-    RCLCPP_INFO(
-      rclcpp::get_logger("VideoGstreamOutput"),
-      "Frame size changed to %dx%d, updating GStreamer caps.", frame.cols, frame.rows
-    );
-    _frame_size = frame.size();
-
-    GstCaps* caps = gst_caps_new_simple("video/x-raw",
-      "format", G_TYPE_STRING, "BGR",
-      "width", G_TYPE_INT, _frame_size.width,
-      "height", G_TYPE_INT, _frame_size.height,
-      "framerate", GST_TYPE_FRACTION, getQualitySettings().fps, 1,
-      nullptr);
-
-    g_object_set(G_OBJECT(_appsrc), "caps", caps, nullptr);
-    gst_caps_unref(caps);
-
-    // Create GStreamer buffer from OpenCV Mat
-    gst_buffer_unref(_gst_buffer);
-    _gst_buffer = gst_buffer_new_allocate(nullptr, buffer_size, nullptr);
-  }
-
-
-  GstMapInfo map;
-  gst_buffer_map(_gst_buffer, &map, GST_MAP_WRITE);
-  std::memcpy(map.data, frame.data, buffer_size);
-  gst_buffer_unmap(_gst_buffer, &map);
-
-  // Push buffer to appsrc
-  GstFlowReturn ret;
-  g_signal_emit_by_name(_appsrc, "push-buffer", _gst_buffer, &ret);
-
-  if (ret != GST_FLOW_OK) {
-    RCLCPP_ERROR(rclcpp::get_logger("VideoGstreamOutput"), "failed to push buffer to GStreamer pipeline");
-  }
+  _pipeline->sendFrame(frame, codec);
 }
 
 
 VideoGstreamInput::VideoGstreamInput(int port)
   : _pipeline(nullptr)
-  , _udpsrc(nullptr)
-  , _rtph264depay(nullptr)
-  , _decoder(nullptr)
-  , _videoconvert(nullptr)
-  , _appsink(nullptr)
   , _port(port)
   , _is_initialized(false)
 {
@@ -216,68 +165,12 @@ VideoGstreamInput::VideoGstreamInput(int port)
 
 VideoGstreamInput::~VideoGstreamInput()
 {
-  cleanupPipeline();
+
 }
 
-void VideoGstreamInput::initializePipeline()
+void VideoGstreamInput::initialize()
 {
   if (_is_initialized) {
-    return;
-  }
-
-  // Create pipeline elements
-  _pipeline = gst_pipeline_new("video-input-pipeline");
-  _udpsrc = gst_element_factory_make("udpsrc", "source");
-  _rtph264depay = gst_element_factory_make("rtph264depay", "depayloader");
-  _decoder = gst_element_factory_make("avdec_h264", "decoder");
-  _videoconvert = gst_element_factory_make("videoconvert", "convert");
-  _appsink = gst_element_factory_make("appsink", "sink");
-
-  if (!_pipeline || !_udpsrc || !_rtph264depay || !_decoder || 
-      !_videoconvert || !_appsink) {
-    RCLCPP_ERROR(rclcpp::get_logger("VideoGstreamInput"), "failed to create GStreamer input elements");
-    cleanupPipeline();
-    return;
-  }
-
-  // Configure udpsrc
-  GstCaps* caps = gst_caps_new_simple("application/x-rtp",
-    "media", G_TYPE_STRING, "video",
-    "clock-rate", G_TYPE_INT, 90000,
-    "encoding-name", G_TYPE_STRING, "H264",
-    nullptr);
-  
-  g_object_set(G_OBJECT(_udpsrc),
-    "port", _port,
-    "caps", caps,
-    nullptr);
-  gst_caps_unref(caps);
-
-  // Configure appsink
-  g_object_set(G_OBJECT(_appsink),
-    "emit-signals", TRUE,
-    "sync", FALSE,
-    "max-buffers", 1,
-    "drop", TRUE,
-    nullptr);
-
-  // Add elements to pipeline
-  gst_bin_add_many(GST_BIN(_pipeline), _udpsrc, _rtph264depay, _decoder,
-                   _videoconvert, _appsink, nullptr);
-
-  // Link elements
-  if (!gst_element_link_many(_udpsrc, _rtph264depay, _decoder, 
-                             _videoconvert, _appsink, nullptr)) {
-    RCLCPP_ERROR(rclcpp::get_logger("VideoGstreamInput"), "failed to link GStreamer input elements");
-    cleanupPipeline();
-    return;
-  }
-
-  // Start pipeline
-  GstStateChangeReturn ret = gst_element_set_state(_pipeline, GST_STATE_PLAYING);
-  if (ret == GST_STATE_CHANGE_FAILURE) {
-    RCLCPP_ERROR(rclcpp::get_logger("VideoGstreamInput"), "failed to start GStreamer input pipeline");
-    cleanupPipeline();
     return;
   }
 
@@ -285,64 +178,14 @@ void VideoGstreamInput::initializePipeline()
   RCLCPP_INFO(rclcpp::get_logger("VideoGstreamInput"), "GStreamer input pipeline initialized (UDP port %d)", _port);
 }
 
-void VideoGstreamInput::cleanupPipeline()
-{
-  if (_pipeline) {
-    gst_element_set_state(_pipeline, GST_STATE_NULL);
-    gst_object_unref(_pipeline);
-    _pipeline = nullptr;
-  }
-  
-  // Child elements are automatically unreferenced when pipeline is unreferenced
-  _udpsrc = nullptr;
-  _rtph264depay = nullptr;
-  _decoder = nullptr;
-  _videoconvert = nullptr;
-  _appsink = nullptr;
-  _is_initialized = false;
-}
-
 void VideoGstreamInput::receiveFrameAndDecode(cv::Mat& frame)
 {
   // Initialize pipeline on first call
   if (!_is_initialized) {
-    initializePipeline();
-    if (!_is_initialized) {
-      return;
-    }
-  }
-
-  // Pull sample from appsink
-  GstSample* sample = nullptr;
-  g_signal_emit_by_name(_appsink, "pull-sample", &sample);
-  
-  if (!sample) {
     return;
   }
 
-  GstBuffer* buffer = gst_sample_get_buffer(sample);
-  GstCaps* caps = gst_sample_get_caps(sample);
   
-  if (!buffer || !caps) {
-    gst_sample_unref(sample);
-    return;
-  }
-
-  // Get video info from caps
-  GstStructure* structure = gst_caps_get_structure(caps, 0);
-  int width, height;
-  gst_structure_get_int(structure, "width", &width);
-  gst_structure_get_int(structure, "height", &height);
-
-  // Map buffer and copy to cv::Mat
-  GstMapInfo map;
-  if (gst_buffer_map(buffer, &map, GST_MAP_READ)) {
-    // Assuming BGR format from videoconvert
-    frame = cv::Mat(height, width, CV_8UC3, map.data).clone();
-    gst_buffer_unmap(buffer, &map);
-  }
-
-  gst_sample_unref(sample);
 }
 
 } // namespace video_stream

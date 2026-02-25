@@ -39,10 +39,11 @@ public:
   /**
    * @brief Send a frame to the stream
    * @param frame cv::Mat frame to send
+   * @param codec Codec of the frame
    * @return true if frame was sent successfully
    */
   // \todo what is with a codec frame?
-  bool sendFrame(const cv::Mat& frame);
+  bool sendFrame(const cv::Mat& frame, const Codec codec);
   
   /**
    * @brief Update network metrics for adaptive adjustment

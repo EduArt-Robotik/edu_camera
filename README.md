@@ -38,3 +38,21 @@ Reading data from cameras and stream it on network.
 ```bash
 gst-launch-1.0 -v udpsrc port=5000 caps="application/x-rtp,media=video,clock-rate=90000,encoding-name=H264,payload=96"   ! rtph264depay ! avdec_h264 ! videoconvert ! autovideosink
 ```
+
+## Request available modi
+
+```bash
+v4l2-ctl --list-formats-ext -d /dev/video0
+```
+
+## List all available video devices
+
+```bash
+v4l2-ctl --list-devices
+```
+
+## Testing camera
+
+```bash
+gst-launch-1.0 v4l2src device=/dev/video0 ! videoconvert ! autovideosink
+```

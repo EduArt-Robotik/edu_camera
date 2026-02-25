@@ -56,8 +56,10 @@ private:
 class GstreamPipelineBuilder
 {
 public:
-  GstreamPipelineBuilder(const camera::VideoCamera::Parameter& camera_parameter);
+  GstreamPipelineBuilder(const camera::VideoCamera::Parameter& camera_parameter, const Codec input_codec);
   
+  GstreamPipelineBuilder& addDecoderMJpeg(const std::string& name);
+  GstreamPipelineBuilder& addCapFilter(const std::string& name, const int width, const int height);
   GstreamPipelineBuilder& addVideoConvert(const std::string& name);
   GstreamPipelineBuilder& addVideoScale(const std::string& name);
   GstreamPipelineBuilder& addEncoderH264(

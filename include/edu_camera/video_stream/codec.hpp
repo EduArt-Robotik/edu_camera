@@ -35,7 +35,7 @@ public:
       type_ = Type::MJPEG;
     } else if (code_name == "NV12") {
       type_ = Type::NV12;
-    } else if (code_name == "YUYV") {
+    } else if (code_name == "YUYV" || code_name == "YUY2") {
       type_ = Type::YUYV;
     } else if (code_name == "BGR") {
       type_ = Type::BGR;

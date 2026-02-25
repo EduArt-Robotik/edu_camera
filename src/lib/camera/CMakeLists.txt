@@ -1,6 +1,7 @@
 message(STATUS "building camera module.")
 add_library(camera SHARED
   video_camera_opencv.cpp
+  video_camera.cpp
 )
 target_include_directories(camera
   PUBLIC

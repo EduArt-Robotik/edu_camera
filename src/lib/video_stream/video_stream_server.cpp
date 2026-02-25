@@ -30,7 +30,7 @@ void VideoStreamServer::shutdown()
   // \todo implement actual shutdown
 }
 
-bool VideoStreamServer::sendFrame(const cv::Mat& frame)
+bool VideoStreamServer::sendFrame(const cv::Mat& frame, const Codec codec)
 {
   if (frame.empty()) {
     std::cerr << "[VideoStreamServer] Warning: Empty frame, skipping" << std::endl;
@@ -38,7 +38,7 @@ bool VideoStreamServer::sendFrame(const cv::Mat& frame)
   }
   
   // Send frame to output
-  _stream_output->encodeAndSendFrame(frame);
+  _stream_output->encodeAndSendFrame(frame, codec);
   
   return true;
 }
