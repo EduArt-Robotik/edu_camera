@@ -24,10 +24,10 @@ int main(int argc, char *argv[])
       Codec(Codec::Type::MJPEG)
       // Codec(Codec::Type::YUYV)
     },
-    4
+    0
   };
   const VideoGstreamOutput::Parameter stream_parameter = {
-    "192.168.178.121",
+    "127.0.0.1",
     5000,
     Codec(Codec::Type::BGR),
     { 
@@ -50,21 +50,27 @@ int main(int argc, char *argv[])
     return -1;
   }
 
-  double bitrate_kbps = 5000; // Example bitrate in kbps
-
+  double bitrate_kbps = 1000; // Example bitrate in kbps
+  std::chrono::steady_clock::time_point last_update = std::chrono::steady_clock::now();
 
   while (rclcpp::ok()) {
     const cv::Mat frame = camera.captureFrame();
     stream_server.sendFrame(frame, camera_parameter.codec);
 
     // simulate bade network
-    // stream_server.setQualityManual(bitrate_kbps, 1920, 1080, 30);
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - last_update);
+    if (elapsed.count() < 1) {
+      continue;
+    }
+    last_update = now;
+    stream_server.setQualityManual(bitrate_kbps, 1920, 1080, 30);
     
-    // bitrate_kbps -= 100; // Decrease bitrate to simulate worsening network conditions
-    // std::cout << "Current bitrate: " << bitrate_kbps << " kbps" << std::endl;
-    // if (bitrate_kbps < 500) {
-    //   bitrate_kbps = 5000; // Reset to maximum bitrate
-    // }
+    bitrate_kbps -= 100; // Decrease bitrate to simulate worsening network conditions
+    std::cout << "Current bitrate: " << bitrate_kbps << " kbps" << std::endl;
+    if (bitrate_kbps < 101) {
+      bitrate_kbps = 1000; // Reset to maximum bitrate
+    }
   }
 
   camera.close();

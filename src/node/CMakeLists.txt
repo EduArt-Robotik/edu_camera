@@ -1,3 +1,4 @@
+# Camera Node
 add_executable(camera_node
   camera_node.cpp
 )
@@ -15,6 +16,26 @@ ament_target_dependencies(camera_node
 )
 
 list(APPEND BUILT_NODES camera_node)
+
+
+# Wifi Network Analyzer Node
+add_executable(wifi_network_analyzer_node
+  wifi_network_analyzer_node.cpp
+)
+target_include_directories(wifi_network_analyzer_node
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(wifi_network_analyzer_node
+  analyzer
+)
+ament_target_dependencies(wifi_network_analyzer_node
+  "rclcpp"
+  "std_msgs"
+)
+
+list(APPEND BUILT_NODES wifi_network_analyzer_node)
 
 # Populating Built Nodes
 set(BUILT_NODES ${BUILT_NODES} PARENT_SCOPE)

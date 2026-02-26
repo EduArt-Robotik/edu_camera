@@ -34,8 +34,9 @@ public:
    *        network conditions.
    * @param settings The quality settings to apply.
    */
-  inline void setQualitySettings(const QualitySettings& settings) {
+  void setQualitySettings(const QualitySettings& settings) {
     _video_stream_quality = settings;
+    updateQualitySettings(settings);
   }
   inline QualitySettings getQualitySettings() const {
     return _video_stream_quality;
