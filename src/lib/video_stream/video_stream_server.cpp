@@ -1,15 +1,15 @@
 #include "edu_camera/video_stream/video_stream_server.hpp"
 
+#include <rclcpp/logging.hpp>
+
 #include <iostream>
-#include <chrono>
 #include <cmath>
 
 namespace eduart {
 namespace camera {
 namespace video_stream {
 
-VideoStreamServer::VideoStreamServer(std::unique_ptr<VideoStreamOutput> output)
-  : _stream_output(std::move(output))
+VideoStreamServer::VideoStreamServer()
 {
 
 }
@@ -33,12 +33,14 @@ void VideoStreamServer::shutdown()
 bool VideoStreamServer::sendFrame(const cv::Mat& frame, const Codec codec)
 {
   if (frame.empty()) {
-    std::cerr << "[VideoStreamServer] Warning: Empty frame, skipping" << std::endl;
+    RCLCPP_WARN(rclcpp::get_logger("VideoStreamServer"), "Empty frame, skipping");
     return false;
   }
   
   // Send frame to output
-  _stream_output->encodeAndSendFrame(frame, codec);
+  for (auto& [name, output] : _stream_output) {
+    output->encodeAndSendFrame(frame, codec);
+  }
   
   return true;
 }
@@ -49,7 +51,7 @@ void VideoStreamServer::updateNetworkMetrics(const NetworkMetrics& metrics)
   // \todo implement actual adaptation logic
   (void)metrics;
 
-  _stream_output->setQualitySettings({});
+  // _stream_output->setQualitySettings({});
 }
 
 void VideoStreamServer::setQualityManual(int bitrate, int width, int height, int fps)
@@ -61,13 +63,15 @@ void VideoStreamServer::setQualityManual(int bitrate, int width, int height, int
   settings.height = height;
   settings.fps = fps;
 
-  _stream_output->setQualitySettings(settings);  
+  for (auto& [name, output] : _stream_output) {
+    output->setQualitySettings(settings);
+  }
 }
 
-bool VideoStreamServer::isConnected() const
-{
-  return true; // \todo implement actual connection check
-}
+// bool VideoStreamServer::isConnected() const
+// {
+//   return true; // \todo implement actual connection check
+// }
 
 QualitySettings calculate_quality_(const NetworkMetrics& metrics)
 {
@@ -130,96 +134,31 @@ QualitySettings calculate_quality_(const NetworkMetrics& metrics)
   return qs;
 }
 
+void VideoStreamServer::addStreamClient(
+  edu_camera::srv::SubscribeToStream::Request::SharedPtr request, 
+  edu_camera::srv::SubscribeToStream::Response::SharedPtr response)
+{
+  // \todo implement actual client subscription logic
+  (void)request;
+  (void)response;
 
+  const auto search = _stream_output.find(request->pipeline);
 
-// void VideoStreamServer::encoding_worker_()
-// {
-//   std::cout << "[VideoStreamServer] Encoding thread started" << std::endl;
-  
-//   while (!should_shutdown_) {
-//     cv::Mat frame;
-    
-//     {
-//       std::unique_lock<std::mutex> lock(queue_mutex_);
-//       queue_cv_.wait_for(lock, std::chrono::milliseconds(100), [this]() {
-//         return !frame_queue_.empty() || should_shutdown_;
-//       });
-      
-//       if (frame_queue_.empty()) {
-//         continue;
-//       }
-      
-//       frame = frame_queue_.front();
-//       frame_queue_.pop();
-//     }
-    
-//     // Get current quality settings
-//     QualitySettings quality;
-//     {
-//       std::lock_guard<std::mutex> lock(quality_mutex_);
-//       quality = current_quality_;
-//     }
-    
-//     // Resize frame if needed
-//     cv::Mat resized_frame = frame;
-//     if (frame.cols != quality.width || frame.rows != quality.height) {
-//       cv::resize(frame, resized_frame, cv::Size(quality.width, quality.height));
-//     }
-    
-//     // Encode frame
-//     std::vector<uint8_t> encoded_data;
-//     if (encode_frame_(resized_frame, encoded_data)) {
-//       // TODO: Send encoded data via RTMP
-//       // RTMP_WriteFrame(rtmp_handle_, encoded_data.data(), encoded_data.size());
-      
-//       frames_sent_++;
-//     }
-//   }
-  
-//   std::cout << "[VideoStreamServer] Encoding thread stopped" << std::endl;
-// }
-
-// bool VideoStreamServer::encode_frame_(const cv::Mat& frame, std::vector<uint8_t>& encoded_data)
-// {
-//   // TODO: Implement H.264 encoding using FFmpeg
-//   // For now, simulate encoding
-  
-//   if (frame.empty()) {
-//     return false;
-//   }
-  
-//   // Simulate encoding by creating dummy data
-//   encoded_data.clear();
-//   encoded_data.resize(frame.total() / 4); // Simplified
-  
-//   return true;
-// }
-
-// void VideoStreamServer::network_monitor_worker_()
-// {
-//   std::cout << "[VideoStreamServer] Network monitor thread started" << std::endl;
-  
-//   auto last_check = std::chrono::steady_clock::now();
-  
-//   while (!should_shutdown_) {
-//     auto now = std::chrono::steady_clock::now();
-//     auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - last_check);
-    
-//     // Monitor network metrics every 2 seconds
-//     if (elapsed.count() >= 2) {
-//       // TODO: Measure actual network metrics
-//       // - Latency (RTT)
-//       // - Packet loss
-//       // - Available bandwidth
-      
-//       last_check = now;
-//     }
-    
-//     std::this_thread::sleep_for(std::chrono::milliseconds(500));
-//   }
-  
-//   std::cout << "[VideoStreamServer] Network monitor thread stopped" << std::endl;
-// }
+  if (search != _stream_output.end()) {
+    RCLCPP_INFO(
+      rclcpp::get_logger("VideoStreamServer"), "Client subscribed to stream: %s", request->pipeline.c_str()
+    );
+    response->success = true;
+    response->message = "Subscribed to stream: " + request->pipeline;
+  } else {
+    RCLCPP_ERROR(
+      rclcpp::get_logger("VideoStreamServer"),
+      "Stream not found for client subscription: %s", request->pipeline.c_str()
+    );
+    response->success = false;
+    response->message = "Stream not found: " + request->pipeline;
+  }
+}
 
 } // namespace video_stream
 } // namespace camera

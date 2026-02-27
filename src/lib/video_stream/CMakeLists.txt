@@ -18,6 +18,7 @@ target_link_libraries(video_stream
     ${GSTREAMER_LIBRARIES}
     ${GSTREAMER_APP_LIBRARIES}
     ${GSTREAMER_VIDEO_LIBRARIES}
+    "${cpp_typesupport_target}"
 )
 ament_target_dependencies(video_stream
   "rclcpp"

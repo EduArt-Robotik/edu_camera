@@ -16,10 +16,21 @@ find_package(image_transport REQUIRED)
 find_package(camera_info_manager REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(PkgConfig REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
 
 pkg_check_modules(GSTREAMER REQUIRED gstreamer-1.0)
 pkg_check_modules(GSTREAMER_APP REQUIRED gstreamer-app-1.0)
 pkg_check_modules(GSTREAMER_VIDEO REQUIRED gstreamer-video-1.0)
+
+## Build Defined ROS Messages
+rosidl_generate_interfaces(${PROJECT_NAME}
+# Messages
+# Services
+  "srv/SubscribeToStream.srv"
+#  DEPENDENCIES
+)
+# Create a target that can be used by all buildiung targets when the custom message are required for them.
+rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
 
 # Building Libraries
 add_subdirectory(src/lib)

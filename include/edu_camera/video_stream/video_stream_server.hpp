@@ -8,6 +8,7 @@
 #include "edu_camera/video_stream/network_metric.hpp"
 #include "edu_camera/video_stream/quality_settings.hpp"
 #include "edu_camera/video_stream/video_stream.hpp"
+#include "edu_camera/srv/subscribe_to_stream.hpp"
 
 #include <memory>
 
@@ -22,7 +23,7 @@ namespace video_stream {
 class VideoStreamServer
 {
 public:
-  VideoStreamServer(std::unique_ptr<VideoStreamOutput> output);
+  VideoStreamServer();
   virtual ~VideoStreamServer();
   
   /**
@@ -44,7 +45,16 @@ public:
    */
   // \todo what is with a codec frame?
   bool sendFrame(const cv::Mat& frame, const Codec codec);
-  
+
+  /**
+   * @brief Add a new stream output. This allows to send the same frame to multiple outputs (e.g. RTMP, WebRTC, etc.)
+   * @param name Name of the stream output
+   * @param output Unique pointer to the stream output
+   */
+  inline void addStreamOutput(const std::string& name, std::unique_ptr<VideoStreamOutput> output) {
+    _stream_output[name] = std::move(output);
+  }
+
   /**
    * @brief Update network metrics for adaptive adjustment
    * @param metrics Network metrics (latency, packet loss, bandwidth)
@@ -66,11 +76,11 @@ public:
    */
   void setQualityManual(int bitrate, int width, int height, int fps);
   
-  /**
-   * @brief Check if streamer is connected
-   * @return true if connected to RTMP server
-   */
-  bool isConnected() const;
+  // /**
+  //  * @brief Check if streamer is connected
+  //  * @return true if connected to RTMP server
+  //  */
+  // bool isConnected() const;
   
   /**
    * @brief Get current statistics
@@ -79,8 +89,14 @@ public:
   // uint64_t getFramesSent() const { return frames_sent_; }
 
 private:
-  std::unique_ptr<VideoStreamOutput> _stream_output;
+  void addStreamClient(
+    edu_camera::srv::SubscribeToStream::Request::SharedPtr request,
+    edu_camera::srv::SubscribeToStream::Response::SharedPtr response);
+
+  std::unordered_map<std::string, std::unique_ptr<VideoStreamOutput>> _stream_output;
   QualitySettings _quality_settings;
+
+  std::shared_ptr<rclcpp::Service<edu_camera::srv::SubscribeToStream>> _sub_scribe_service;
 };
 
 } // namespace video_stream

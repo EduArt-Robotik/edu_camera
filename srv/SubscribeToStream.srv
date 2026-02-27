@@ -1,0 +1,8 @@
+# request
+string pipeline
+string ip
+uint32 port
+---
+# response
+bool success
+string message

@@ -22,7 +22,6 @@ int main(int argc, char *argv[])
       cv::Size2i(1920, 1080),
       30.0f,
       Codec(Codec::Type::MJPEG)
-      // Codec(Codec::Type::YUYV)
     },
     0
   };
@@ -32,16 +31,19 @@ int main(int argc, char *argv[])
     Codec(Codec::Type::BGR),
     { 
       {"videoconvert", "videoconvert"},
-      {"videoscale", "videoscale"},
-      {"capfilter", "cap_filter"},
-      {"encoder", "encoder_h264"},
-      {"payloader", "rtp_payloader"},
-      {"sink", "udp_sink"}
+      // {"videoscale"  , "videoscale"},
+      // {"capfilter"   , "cap_filter"},
+      {"encoder"     , "encoder_h264"},
+      {"payloader"   , "rtp_payloader"},
+      {"sink"        , "udp_sink"}
     }
   };
 
   VideoCameraOpenCV camera(camera_parameter);
-  VideoStreamServer stream_server(
+  VideoStreamServer stream_server;
+
+  stream_server.addStreamOutput(
+    "h264_rtp_udp",
     std::make_unique<VideoGstreamOutput>(stream_parameter, camera_parameter, settings)
   );
 
