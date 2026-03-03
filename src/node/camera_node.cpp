@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
 {
   rclcpp::init(argc, argv);
 
-  const QualitySettings settings{5000, 1920, 1080, 30};
+  const QualitySettings settings{10000, 1920, 1080, 30};
   const VideoCameraOpenCV::Parameter camera_parameter = {
     {
       cv::Size2i(1920, 1080),
@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
   while (rclcpp::ok()) {
     const cv::Mat frame = camera.captureFrame();
     stream_server.sendFrame(frame, camera_parameter.codec);
-
+    continue;
     // simulate bade network
     auto now = std::chrono::steady_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - last_update);

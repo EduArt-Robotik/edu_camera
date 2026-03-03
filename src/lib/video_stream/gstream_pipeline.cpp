@@ -3,6 +3,7 @@
 #include <gst/gst.h>
 #include <gst/app/gstappsrc.h>
 #include <gst/app/gstappsink.h>
+#include <gst/video/video.h>
 
 #include <opencv2/highgui.hpp>
 
@@ -100,7 +101,56 @@ void GstreamPipeline::sendFrame(const cv::Mat& frame, const Codec codec)
   if (ret != GST_FLOW_OK) {
     RCLCPP_ERROR(rclcpp::get_logger("GstreamPipeline"), "failed to push buffer to appsrc (GstFlowReturn=%d)", ret);
   }
-  // std::cout << "pushed buffer to appsrc" << std::endl;
+}
+
+bool GstreamPipeline::receiveFrame(cv::Mat& frame, Codec& codec)
+{
+  auto it = _elements.find("sink");
+  if (it == _elements.end()) {
+    RCLCPP_ERROR(rclcpp::get_logger("GstreamPipeline"), "appsink element not found");
+    return false;
+  }
+
+  GstElement* appsink = it->second;
+  GstSample* sample = gst_app_sink_pull_sample(GST_APP_SINK(appsink));
+  
+  if (!sample) {
+    return false;  // No frame available yet
+  }
+
+  GstCaps* sample_caps = gst_sample_get_caps(sample);
+  if (sample_caps) {
+    GstStructure* structure = gst_caps_get_structure(sample_caps, 0);
+    int width = 0;
+    int height = 0;
+    if (gst_structure_get_int(structure, "width", &width) &&
+        gst_structure_get_int(structure, "height", &height)) {
+      _frame_size = cv::Size(width, height);
+    }
+  }
+
+  GstBuffer* buffer = gst_sample_get_buffer(sample);
+  GstMapInfo map;
+  gst_buffer_map(buffer, &map, GST_MAP_READ);
+
+  const GstVideoMeta* video_meta = gst_buffer_get_video_meta(buffer);
+  const int stride = video_meta ? static_cast<int>(video_meta->stride[0]) :
+    static_cast<int>(map.size / static_cast<size_t>(_frame_size.height));
+
+  // Map to cv::Mat (BGR format after videoconvert)
+  frame = cv::Mat(
+    _frame_size.height, 
+    _frame_size.width, 
+    CV_8UC3,
+    map.data,
+    stride
+  ).clone(); // clone() is important, as map.data becomes invalid after unmap
+  codec = Codec(Codec::Type::BGR); // assuming videoconvert is used to convert to BGR format, so yes it smells a bit, but it works for now
+
+  gst_buffer_unmap(buffer, &map);
+  gst_sample_unref(sample);
+  
+  return true;  // Frame successfully received
 }
 
 
@@ -148,6 +198,34 @@ GstreamPipelineBuilder::GstreamPipelineBuilder(const camera::VideoCamera::Parame
   _pipeline->_elements["source"] = appsrc;
   _pipeline->_element_order.push_back(appsrc);
   _pipeline->_frame_size = camera_parameter.resolution;
+}
+
+GstreamPipelineBuilder::GstreamPipelineBuilder(const int udp_port)
+{
+  _pipeline = std::make_unique<GstreamPipeline>();
+  _pipeline->_pipeline = gst_pipeline_new("video-input-pipeline");
+
+  // UDP source (entry point of pipeline for receiver)
+  auto udpsrc = gst_element_factory_make("udpsrc", "source");
+
+  // Configure UDP source with RTP caps
+  GstCaps* caps = gst_caps_new_simple("application/x-rtp",
+    "media", G_TYPE_STRING, "video",
+    "clock-rate", G_TYPE_INT, 90000,
+    "payload", G_TYPE_INT, 96,
+    "encoding-name", G_TYPE_STRING, "H264",
+    nullptr
+  );
+
+  g_object_set(G_OBJECT(udpsrc),
+    "port", udp_port,
+    "caps", caps,
+    nullptr
+  );
+  gst_caps_unref(caps);
+
+  _pipeline->_elements["source"] = udpsrc;
+  _pipeline->_element_order.push_back(udpsrc);
 }
 
 GstreamPipelineBuilder& GstreamPipelineBuilder::addDecoderMJpeg(const std::string& name)
@@ -241,6 +319,56 @@ GstreamPipelineBuilder& GstreamPipelineBuilder::addUdpSink(
     "port", port,
     nullptr
   );
+
+  return *this;
+}
+
+GstreamPipelineBuilder& GstreamPipelineBuilder::addRtpDepayloader(const std::string& name)
+{
+  auto depayloader = gst_element_factory_make("rtph264depay", name.c_str());
+  _pipeline->_elements[name] = depayloader;
+  _pipeline->_element_order.push_back(depayloader);
+
+  return *this;
+}
+
+GstreamPipelineBuilder& GstreamPipelineBuilder::addH264Parser(const std::string& name)
+{
+  auto parser = gst_element_factory_make("h264parse", name.c_str());
+  _pipeline->_elements[name] = parser;
+  _pipeline->_element_order.push_back(parser);
+
+  return *this;
+}
+
+GstreamPipelineBuilder& GstreamPipelineBuilder::addDecoderH264(const std::string& name)
+{
+  auto decoder = gst_element_factory_make("avdec_h264", name.c_str());
+  _pipeline->_elements[name] = decoder;
+  _pipeline->_element_order.push_back(decoder);
+
+  return *this;
+}
+
+GstreamPipelineBuilder& GstreamPipelineBuilder::addAppSink(const std::string& name)
+{
+  auto appsink = gst_element_factory_make("appsink", name.c_str());
+  _pipeline->_elements[name] = appsink;
+  _pipeline->_element_order.push_back(appsink);
+
+  GstCaps* caps = gst_caps_new_simple("video/x-raw",
+    "format", G_TYPE_STRING, "BGR",
+    nullptr
+  );
+
+  g_object_set(G_OBJECT(appsink),
+    "emit-signals", TRUE,
+    "sync", FALSE,
+    "caps", caps,
+    nullptr
+  );
+
+  gst_caps_unref(caps);
 
   return *this;
 }
