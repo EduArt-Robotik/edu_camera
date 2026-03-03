@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
 {
   rclcpp::init(argc, argv);
 
-  const QualitySettings settings{10000, 1920, 1080, 30};
+  const QualitySettings settings{5000, 1920, 1080, 30};
   const VideoCameraOpenCV::Parameter camera_parameter = {
     {
       cv::Size2i(1920, 1080),
