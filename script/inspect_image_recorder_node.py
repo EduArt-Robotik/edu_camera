@@ -2,6 +2,7 @@
 import rclpy
 import os
 import cv2
+import time
 
 from rclpy.node import Node
 from sensor_msgs.msg import Image
@@ -28,7 +29,7 @@ class InspectImageRecorderNode(Node):
     os.makedirs(self.output_dir_left, exist_ok=True)
     os.makedirs(self.output_dir_right, exist_ok=True)
 
-    self.recording = False
+    self.recording = True
     self.interval_send_image = 2.0  # seconds
   
     # open camera and start recording
@@ -54,6 +55,7 @@ class InspectImageRecorderNode(Node):
     # self.pub_image_right = self.image_transport_right.advertise('inspect/image_right', 2)
     self.last_publish_time = self.get_clock().now()
     
+    self.distance_threshold = 0.0 # trigger every 20cm
     self.sub_odometry = self.create_subscription(Odometry, 'odometry', self.callback_odometry, 2)
 
   def capture_images(self):
@@ -75,11 +77,8 @@ class InspectImageRecorderNode(Node):
 
     # publish images to topics (for visualization in rqt_image_view)
     if (self.get_clock().now() - self.last_publish_time).nanoseconds > self.interval_send_image * 1e9:
-      msg_left = Image()
-      msg_right = Image()
-      # TODO: fill msg_left and msg_right with frame_left and frame_right data
-      self.pub_image_left.publish(msg_left)
-      self.pub_image_right.publish(msg_right)
+      self.pub_image_left.publish(frame_left)
+      self.pub_image_right.publish(frame_right)
       self.last_publish_time = self.get_clock().now()
 
   def start_stop_recording(self, request, response):
