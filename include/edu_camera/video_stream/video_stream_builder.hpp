@@ -10,13 +10,12 @@ namespace camera {
 namespace video_stream {
 
 /**
- * @brief Builder class for creating video stream objects. Its used by the video stream server for creating video
- *        streams that are preconfigured.
+ * @brief Builder class for creating video stream objects. Its used by the video
+ * stream server for creating video streams that are preconfigured.
  */
 class VideoStreamBuilder
 {
 public:
-  
 
 };
 

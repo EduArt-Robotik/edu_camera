@@ -42,6 +42,8 @@ public:
 
   void set(const std::string& element_name, const char* property_name, const int value);
   void sendFrame(const cv::Mat& frame, const Codec codec);
+  bool receiveFrame(cv::Mat& frame, Codec& codec);
+  // \todo add callback method technique for receiving frames via callback.
 
 private:
   std::unordered_map<std::string, GstElement*> _elements; // allow access to elements by name
@@ -56,7 +58,11 @@ private:
 class GstreamPipelineBuilder
 {
 public:
+  // Constructor for sender pipeline (appsrc-based)
   GstreamPipelineBuilder(const camera::VideoCamera::Parameter& camera_parameter, const Codec input_codec);
+  
+  // Constructor for receiver pipeline (udpsrc-based)
+  GstreamPipelineBuilder(const int udp_port);
   
   GstreamPipelineBuilder& addDecoderMJpeg(const std::string& name);
   GstreamPipelineBuilder& addCapFilter(const std::string& name, const int width, const int height);
@@ -66,7 +72,11 @@ public:
     const std::string& name, const int bitrate_kbps);
   GstreamPipelineBuilder& addRtpPayloader(const std::string& name);
   GstreamPipelineBuilder& addUdpSink(
-    const std::string& name, const std::string& host, const int port);
+    const std::string& name, const std::string& host, const int port);  
+  GstreamPipelineBuilder& addRtpDepayloader(const std::string& name);
+  GstreamPipelineBuilder& addH264Parser(const std::string& name);
+  GstreamPipelineBuilder& addDecoderH264(const std::string& name);
+  GstreamPipelineBuilder& addAppSink(const std::string& name);
 
   std::unique_ptr<GstreamPipeline> build();
 
