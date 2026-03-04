@@ -19,6 +19,9 @@
   <depend>cv_bridge</depend>
   <depend>image_transport</depend>
   <depend>camera_info_manager</depend>
+  <depend>nav_msgs</depend>
+  <depend>rclpy</depend>
+  <depend>image_transport_py</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

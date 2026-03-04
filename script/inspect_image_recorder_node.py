@@ -1,6 +1,7 @@
-# --- ROS2 Node Main ---
+#!/usr/bin/env python3
 import rclpy
-import image_transport
+import os
+import cv2
 
 from rclpy.node import Node
 from sensor_msgs.msg import Image
@@ -44,10 +45,13 @@ class InspectImageRecorderNode(Node):
     # creating services and topics
     self.srv_start_stop = self.create_service(Trigger, 'start_stop_recording', self.start_stop_recording)
 
-    self.image_transport_left = image_transport.ImageTransport(self)
-    self.image_transport_right = image_transport.ImageTransport(self)
-    self.pub_image_left = self.image_transport_left.advertise('inspect/image_left', 2)
-    self.pub_image_right = self.image_transport_right.advertise('inspect/image_right', 2)
+    # Publish raw Image messages directly
+    self.pub_image_left = self.create_publisher(Image, 'inspect/image_left', 2)
+    self.pub_image_right = self.create_publisher(Image, 'inspect/image_right', 2)
+    # self.image_transport_left = ImageTransport(self)
+    # self.image_transport_right = ImageTransport(self)
+    # self.pub_image_left = self.image_transport_left.advertise('inspect/image_left', 2)
+    # self.pub_image_right = self.image_transport_right.advertise('inspect/image_right', 2)
     self.last_publish_time = self.get_clock().now()
     
     self.sub_odometry = self.create_subscription(Odometry, 'odometry', self.callback_odometry, 2)
@@ -73,6 +77,7 @@ class InspectImageRecorderNode(Node):
     if (self.get_clock().now() - self.last_publish_time).nanoseconds > self.interval_send_image * 1e9:
       msg_left = Image()
       msg_right = Image()
+      # TODO: fill msg_left and msg_right with frame_left and frame_right data
       self.pub_image_left.publish(msg_left)
       self.pub_image_right.publish(msg_right)
       self.last_publish_time = self.get_clock().now()

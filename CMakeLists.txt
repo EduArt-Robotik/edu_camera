@@ -74,6 +74,12 @@ install(
   INCLUDES DESTINATION include
 )
 
+# Install Python scripts
+install(
+  PROGRAMS script/inspect_image_recorder_node.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 # Ament Package Export
 ament_export_include_directories(
   include
