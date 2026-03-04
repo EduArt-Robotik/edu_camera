@@ -1,0 +1,12 @@
+[Unit]
+Description=Bridge GoPro cameras for InInspekt as v4l2 devices
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=<bridge_file_path>/bridge_gopros.sh
+Restart=on-failure
+User=root
+
+[Install]
+WantedBy=multi-user.target

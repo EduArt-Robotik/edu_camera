@@ -3,8 +3,8 @@
 # Its without generalization and only for the InInspekt prototype
 
 # First bring up v4l2loopback
-GOPRO_LEFT_INTERFACE='eth1'
-GOPRO_RIGHT_INTERFACE='eth2'
+GOPRO_LEFT_INTERFACE='inspect_left'
+GOPRO_RIGHT_INTERFACE='inspect_right'
 
 modprobe v4l2loopback video_nr=42,43 card_label=${GOPRO_LEFT_INTERFACE},${GOPRO_RIGHT_INTERFACE}
 
@@ -12,9 +12,9 @@ modprobe v4l2loopback video_nr=42,43 card_label=${GOPRO_LEFT_INTERFACE},${GOPRO_
 # The gopro stream is in h264 format and ffmpeg will convert it to yuv format and pipe it to the v4l2loopback device
 RESOLUTION='1080p'
 FPS='5'
-GOPRO_LEFT_IP=''
+GOPRO_LEFT_IP='172.28.124.51'
 GOPRO_LEFT_PORT='5001'
-GOPRO_RIGHT_IP=''
+GOPRO_RIGHT_IP='172.26.179.51'
 GOPRO_RIGHT_PORT='5002'
 
 ## Starting gopro stream via http request
