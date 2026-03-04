@@ -28,4 +28,5 @@ curl -s "http://${GOPRO_RIGHT_IP}${START_PATH}?res=${RESOLUTION}&fov=linear&port
 
 ## Using ffmepg to forward and convert the h264 video stream to a yuvu stream on video device
 ffmpeg -nostdin -threads 1 -i 'udp://@0.0.0.0:5001?overrun_nonfatal=1&fifo_size=50000000' -f:v mpegts -fflags nobuffer -vf format=yuv420p -f v4l2 /dev/video42 &
-ffmpeg -nostdin -threads 1 -i 'udp://@0.0.0.0:5002?overrun_nonfatal=1&fifo_size=50000000' -f:v mpegts -fflags nobuffer -vf format=yuv420p -f v4l2 /dev/video43
+ffmpeg -nostdin -threads 1 -i 'udp://@0.0.0.0:5002?overrun_nonfatal=1&fifo_size=50000000' -f:v mpegts -fflags nobuffer -vf format=yuv420p -f v4l2 /dev/video43 &
+wait

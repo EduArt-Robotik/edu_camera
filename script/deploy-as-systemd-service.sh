@@ -5,7 +5,7 @@ if [ "$(whoami)" != "root" ]; then
 fi
 
 bridge_file_path=$(pwd)
-systemd_service_file="bridge-gopros.service"
+systemd_service_file="bridge_gopros.service"
 tag="<bridge_file_path>"
 
 echo "Deploying GoPro bridge as systemd service"
