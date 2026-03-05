@@ -56,5 +56,26 @@ ament_target_dependencies(stream_client_node
 
 list(APPEND BUILT_NODES stream_client_node)
 
+
+# Inspect Image Recorder Node
+add_executable(inspect_image_recorder_node
+  inspect_image_recorder_node.cpp
+)
+target_include_directories(inspect_image_recorder_node
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(inspect_image_recorder_node
+  video_stream
+)
+ament_target_dependencies(inspect_image_recorder_node
+  "rclcpp"
+  "std_srvs"
+  "nav_msgs"
+  "sensor_msgs"
+  "cv_bridge"
+)
+
 # Populating Built Nodes
 set(BUILT_NODES ${BUILT_NODES} PARENT_SCOPE)
