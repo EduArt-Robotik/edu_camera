@@ -75,6 +75,7 @@ ament_target_dependencies(inspect_image_recorder_node
   "nav_msgs"
   "sensor_msgs"
   "cv_bridge"
+  "image_transport"
 )
 
 list(APPEND BUILT_NODES inspect_image_recorder_node)
