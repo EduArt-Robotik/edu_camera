@@ -9,6 +9,7 @@
 #include <sensor_msgs/msg/image.hpp>
 #include <std_srvs/srv/trigger.hpp>
 #include <nav_msgs/msg/odometry.hpp>
+#include <image_transport/image_transport.hpp>
 #include <cv_bridge/cv_bridge.hpp>
 #include <opencv2/opencv.hpp>
 #include <filesystem>
@@ -32,6 +33,11 @@ public:
   , _recording(true)
   , _interval_send_image(2.0)
   , _distance(0.0)
+  {
+
+  }
+
+  void initialize()
   {
     _output_dir_left = _output_dir + "/left";
     _output_dir_right = _output_dir + "/right";
@@ -69,14 +75,12 @@ public:
       return;
     }
 
-    _pub_image_left = create_publisher<sensor_msgs::msg::Image>(
-      "inspect/image_left",
-      rclcpp::QoS(2).best_effort()
-    );
-    _pub_image_right = create_publisher<sensor_msgs::msg::Image>(
-      "inspect/image_right",
-      rclcpp::QoS(2).best_effort()
-    );
+    // Initialize image_transport
+    _image_transport = std::make_shared<image_transport::ImageTransport>(shared_from_this());
+    
+    // Create image_transport publishers
+    _pub_image_left = _image_transport->advertise("inspect/image_left", 2);
+    _pub_image_right = _image_transport->advertise("inspect/image_right", 2);
     _srv_start_stop = create_service<std_srvs::srv::Trigger>(
       "start_stop_recording",
       std::bind(&InspectImageRecorderNode::start_stop_recording, this, std::placeholders::_1, std::placeholders::_2)
@@ -137,8 +141,8 @@ private:
       header.frame_id = "camera";
       sensor_msgs::msg::Image::SharedPtr img_msg_left = cv_bridge::CvImage(header, "bgr8", frame_left).toImageMsg();
       sensor_msgs::msg::Image::SharedPtr img_msg_right = cv_bridge::CvImage(header, "bgr8", frame_right).toImageMsg();
-      _pub_image_left->publish(*img_msg_left);
-      _pub_image_right->publish(*img_msg_right);
+      _pub_image_left.publish(*img_msg_left);
+      _pub_image_right.publish(*img_msg_right);
       _last_publish_time = now;
     }
   }
@@ -182,8 +186,9 @@ private:
 
   cv::VideoCapture _cap_left;
   cv::VideoCapture _cap_right;
-  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr _pub_image_left;
-  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr _pub_image_right;
+  std::shared_ptr<image_transport::ImageTransport> _image_transport;
+  image_transport::Publisher _pub_image_left;
+  image_transport::Publisher _pub_image_right;
   rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr _srv_start_stop;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr _sub_odometry;
   std::unique_ptr<GstreamPipeline> _pipeline_left;
@@ -193,6 +198,7 @@ private:
 int main(int argc, char **argv) {
   rclcpp::init(argc, argv);
   auto node = std::make_shared<InspectImageRecorderNode>();
+  node->initialize();
   rclcpp::spin(node);
   rclcpp::shutdown();
   return 0;
