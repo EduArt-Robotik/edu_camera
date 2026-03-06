@@ -110,12 +110,13 @@ private:
     cv::imwrite(filename_left, frame_left);
     cv::imwrite(filename_right, frame_right);
 
-    RCLCPP_INFO(this->get_logger(), "image saved: %s", filename_left.c_str());
-    RCLCPP_INFO(this->get_logger(), "image saved: %s", filename_right.c_str());
+    RCLCPP_INFO(get_logger(), "image saved: %s", filename_left.c_str());
+    RCLCPP_INFO(get_logger(), "image saved: %s", filename_right.c_str());
 
     // Publish images if interval has passed
     auto now = this->now();
     if ((now - _last_publish_time).seconds() > _interval_send_image) {
+      RCLCPP_INFO(get_logger(), "publishing image.");
       std_msgs::msg::Header header;
       header.stamp = now;
       header.frame_id = "camera";
@@ -146,7 +147,7 @@ private:
 
   void start_stop_recording(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
                             std::shared_ptr<std_srvs::srv::Trigger::Response> response)
- {
+  {
     (void)request;
     _recording = !_recording;
     response->success = true;
@@ -159,7 +160,7 @@ private:
   std::string _output_dir_left;
   std::string _output_dir_right;
   bool _recording;
-  double _interval_send_image;
+  double _interval_send_image = 2.0;
   double _distance = 0.0;
   rclcpp::Time _last_publish_time;
   rclcpp::Time _last_odometry;
