@@ -8,6 +8,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_srvs.srv import Trigger
 from nav_msgs.msg import Odometry
+from cv_bridge import CvBridge
 
 class InspectImageRecorderNode(Node):
   def __del__(self):
@@ -31,7 +32,7 @@ class InspectImageRecorderNode(Node):
 
     self.recording = True
     self.interval_send_image = 2.0  # seconds
-  
+
     # open camera and start recording
     self.cap_left = cv2.VideoCapture(self.camera_left_index)
     if not self.cap_left.isOpened():
@@ -42,6 +43,10 @@ class InspectImageRecorderNode(Node):
     if not self.cap_right.isOpened():
       self.get_logger().error("error opening camera.")
       exit(1)
+
+    # cv_bridge für Bildkonvertierung
+
+    self.bridge = CvBridge()
 
     # creating services and topics
     self.srv_start_stop = self.create_service(Trigger, 'start_stop_recording', self.start_stop_recording)
@@ -77,8 +82,10 @@ class InspectImageRecorderNode(Node):
 
     # publish images to topics (for visualization in rqt_image_view)
     if (self.get_clock().now() - self.last_publish_time).nanoseconds > self.interval_send_image * 1e9:
-      self.pub_image_left.publish(frame_left)
-      self.pub_image_right.publish(frame_right)
+      img_msg_left = self.bridge.cv2_to_imgmsg(frame_left, encoding="bgr8")
+      img_msg_right = self.bridge.cv2_to_imgmsg(frame_right, encoding="bgr8")
+      self.pub_image_left.publish(img_msg_left)
+      self.pub_image_right.publish(img_msg_right)
       self.last_publish_time = self.get_clock().now()
 
   def start_stop_recording(self, request, response):

@@ -77,5 +77,7 @@ ament_target_dependencies(inspect_image_recorder_node
   "cv_bridge"
 )
 
+list(APPEND BUILT_NODES inspect_image_recorder_node)
+
 # Populating Built Nodes
 set(BUILT_NODES ${BUILT_NODES} PARENT_SCOPE)

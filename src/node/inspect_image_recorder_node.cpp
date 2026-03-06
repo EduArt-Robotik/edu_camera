@@ -26,87 +26,87 @@ class InspectImageRecorderNode : public rclcpp::Node
 public:
   InspectImageRecorderNode()
   : Node("inspect_image_recorder_node")
-  , camera_left_index_(42)
-  , camera_right_index_(43)
-  , output_dir_("/home/user/Documents/inspect_images/")
-  , recording_(true)
-  , interval_send_image_(2.0)
-  , distance_threshold_(0.0)
+  , _camera_left_index(42)
+  , _camera_right_index(43)
+  , _output_dir("/home/user/Documents/inspect_images/")
+  , _recording(true)
+  , _interval_send_image(2.0)
+  , _distance(0.0)
   {
-    output_dir_left_ = output_dir_ + "/left";
-    output_dir_right_ = output_dir_ + "/right";
-    fs::create_directories(output_dir_left_);
-    fs::create_directories(output_dir_right_);
+    _output_dir_left = _output_dir + "/left";
+    _output_dir_right = _output_dir + "/right";
+    fs::create_directories(_output_dir_left);
+    fs::create_directories(_output_dir_right);
 
-  
-    GstreamPipelineBuilder builder_left(5001); // UDP port for receiving stream
+    // GstreamPipelineBuilder builder_left(5001); // UDP port for receiving stream
 
-    _pipeline_left = builder_left.addRtpDepayloader("rtp_depay_loader")
-                                 .addH264Parser("h264_parser")
-                                 .addDecoderH264("h264_decoder")
-                                 .addVideoConvert("videoconvert")
-                                 .addAppSink("sink")
-                                 .build();
+    // _pipeline_left = builder_left.addRtpDepayloader("rtp_depay_loader")
+    //                              .addH264Parser("h264_parser")
+    //                              .addDecoderH264("h264_decoder")
+    //                              .addVideoConvert("videoconvert")
+    //                              .addAppSink("sink")
+    //                              .build();
 
-    GstreamPipelineBuilder builder_right(5002); // UDP port for receiving stream
+    // GstreamPipelineBuilder builder_right(5002); // UDP port for receiving stream
 
-    _pipeline_right = builder_right.addRtpDepayloader("rtp_depay_loader")
-                                   .addH264Parser("h264_parser")
-                                   .addDecoderH264("h264_decoder")
-                                   .addVideoConvert("videoconvert")
-                                   .addAppSink("sink")
-                                   .build();
+    // _pipeline_right = builder_right.addRtpDepayloader("rtp_depay_loader")
+    //                                .addH264Parser("h264_parser")
+    //                                .addDecoderH264("h264_decoder")
+    //                                .addVideoConvert("videoconvert")
+    //                                .addAppSink("sink")
+    //                                .build();
 
-    // cap_left_.open(camera_left_index_);
-    // if (!cap_left_.isOpened()) {
-    //   RCLCPP_ERROR(this->get_logger(), "error opening left camera.");
-    //   rclcpp::shutdown();
-    //   return;
-    // }
-    // cap_right_.open(camera_right_index_);
-    // if (!cap_right_.isOpened()) {
-    //   RCLCPP_ERROR(this->get_logger(), "error opening right camera.");
-    //   rclcpp::shutdown();
-    //   return;
-    // }
+    _cap_left.open(_camera_left_index);
+    if (!_cap_left.isOpened()) {
+      RCLCPP_ERROR(this->get_logger(), "error opening left camera.");
+      rclcpp::shutdown();
+      return;
+    }
+    _cap_right.open(_camera_right_index);
+    if (!_cap_right.isOpened()) {
+      RCLCPP_ERROR(this->get_logger(), "error opening right camera.");
+      rclcpp::shutdown();
+      return;
+    }
 
-    pub_image_left_ = this->create_publisher<sensor_msgs::msg::Image>("inspect/image_left", 2);
-    pub_image_right_ = this->create_publisher<sensor_msgs::msg::Image>("inspect/image_right", 2);
-    srv_start_stop_ = this->create_service<std_srvs::srv::Trigger>(
+    _pub_image_left = this->create_publisher<sensor_msgs::msg::Image>("inspect/image_left", 2);
+    _pub_image_right = this->create_publisher<sensor_msgs::msg::Image>("inspect/image_right", 2);
+    _srv_start_stop = this->create_service<std_srvs::srv::Trigger>(
       "start_stop_recording", std::bind(&InspectImageRecorderNode::start_stop_recording, this, std::placeholders::_1, std::placeholders::_2));
-    sub_odometry_ = this->create_subscription<nav_msgs::msg::Odometry>(
+    _sub_odometry = this->create_subscription<nav_msgs::msg::Odometry>(
       "odometry", 2, std::bind(&InspectImageRecorderNode::callback_odometry, this, std::placeholders::_1));
-    last_publish_time_ = this->now();
+    _last_publish_time = this->now();
+    _last_odometry = _last_publish_time;
   }
 
   ~InspectImageRecorderNode()
   {
-    if (cap_left_.isOpened()) cap_left_.release();
-    if (cap_right_.isOpened()) cap_right_.release();
+    if (_cap_left.isOpened()) _cap_left.release();
+    if (_cap_right.isOpened()) _cap_right.release();
   }
 
 private:
   void capture_images()
   {
     cv::Mat frame_left, frame_right;
-    // if (!cap_left_.read(frame_left) || !cap_right_.read(frame_right)) {
-    //   RCLCPP_ERROR(this->get_logger(), "error reading camera image.");
-    //   return;
-    // }
-    Codec codec_left, codec_right;
-
-    if (!_pipeline_left->receiveFrame(frame_left, codec_left) || !_pipeline_right->receiveFrame(frame_right, codec_right)) {
-      RCLCPP_ERROR(this->get_logger(), "error receiving frame from pipeline.");
+    if (!_cap_left.read(frame_left) || !_cap_right.read(frame_right)) {
+      RCLCPP_ERROR(this->get_logger(), "error reading camera image.");
       return;
     }
+    // Codec codec_left, codec_right;
+
+    // if (!_pipeline_left->receiveFrame(frame_left, codec_left) || !_pipeline_right->receiveFrame(frame_right, codec_right)) {
+    //   RCLCPP_ERROR(this->get_logger(), "error receiving frame from pipeline.");
+    //   return;
+    // }
 
     // Save images
     auto t = std::time(nullptr);
     auto tm = *std::localtime(&t);
     char timestamp[32];
     std::strftime(timestamp, sizeof(timestamp), "%Y.%m.%d_%H:%M", &tm);
-    std::string filename_left = output_dir_left_ + "/" + timestamp + "_inspect_left.jpg";
-    std::string filename_right = output_dir_right_ + "/" + timestamp + "_inspect_right.jpg";
+    std::string filename_left = _output_dir_left + "/" + timestamp + "_inspect_left.jpg";
+    std::string filename_right = _output_dir_right + "/" + timestamp + "_inspect_right.jpg";
     cv::imwrite(filename_left, frame_left);
     cv::imwrite(filename_right, frame_right);
 
@@ -115,26 +115,30 @@ private:
 
     // Publish images if interval has passed
     auto now = this->now();
-    if ((now - last_publish_time_).seconds() > interval_send_image_) {
+    if ((now - _last_publish_time).seconds() > _interval_send_image) {
       std_msgs::msg::Header header;
       header.stamp = now;
       header.frame_id = "camera";
       sensor_msgs::msg::Image::SharedPtr img_msg_left = cv_bridge::CvImage(header, "bgr8", frame_left).toImageMsg();
       sensor_msgs::msg::Image::SharedPtr img_msg_right = cv_bridge::CvImage(header, "bgr8", frame_right).toImageMsg();
-      pub_image_left_->publish(*img_msg_left);
-      pub_image_right_->publish(*img_msg_right);
-      last_publish_time_ = now;
+      _pub_image_left->publish(*img_msg_left);
+      _pub_image_right->publish(*img_msg_right);
+      _last_publish_time = now;
     }
   }
 
   void callback_odometry(const nav_msgs::msg::Odometry::SharedPtr msg)
   {
-    if (msg->pose.pose.position.x < distance_threshold_)
-      return;
-    if (!recording_)
-      return;
+    const double dt = std::min((rclcpp::Time(msg->header.stamp) - _last_odometry).seconds(), 0.1);
+    const double distance = msg->twist.twist.linear.x * dt;
+
+    _distance += distance;
+
+    if (_distance >= 0.2) {
+      _distance = 0.0;
+    }
+
     RCLCPP_INFO(this->get_logger(), "distance threshold reached --> triggering image capture");
-    distance_threshold_ += 0.2;
     capture_images();
   }
 
@@ -142,26 +146,28 @@ private:
                             std::shared_ptr<std_srvs::srv::Trigger::Response> response)
  {
     (void)request;
-    recording_ = !recording_;
+    _recording = !_recording;
     response->success = true;
-    response->message = recording_ ? "recording started" : "recording stopped";
+    response->message = _recording ? "recording started" : "recording stopped";
   }
 
-  int camera_left_index_;
-  int camera_right_index_;
-  std::string output_dir_;
-  std::string output_dir_left_;
-  std::string output_dir_right_;
-  bool recording_;
-  double interval_send_image_;
-  double distance_threshold_;
-  rclcpp::Time last_publish_time_;
-  cv::VideoCapture cap_left_;
-  cv::VideoCapture cap_right_;
-  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_image_left_;
-  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_image_right_;
-  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr srv_start_stop_;
-  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr sub_odometry_;
+  int _camera_left_index;
+  int _camera_right_index;
+  std::string _output_dir;
+  std::string _output_dir_left;
+  std::string _output_dir_right;
+  bool _recording;
+  double _interval_send_image;
+  double _distance = 0.0;
+  rclcpp::Time _last_publish_time;
+  rclcpp::Time _last_odometry;
+
+  cv::VideoCapture _cap_left;
+  cv::VideoCapture _cap_right;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr _pub_image_left;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr _pub_image_right;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr _srv_start_stop;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr _sub_odometry;
   std::unique_ptr<GstreamPipeline> _pipeline_left;
   std::unique_ptr<GstreamPipeline> _pipeline_right;
 };
