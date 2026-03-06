@@ -69,12 +69,22 @@ public:
       return;
     }
 
-    _pub_image_left = this->create_publisher<sensor_msgs::msg::Image>("inspect/image_left", 10);
-    _pub_image_right = this->create_publisher<sensor_msgs::msg::Image>("inspect/image_right", 10);
-    _srv_start_stop = this->create_service<std_srvs::srv::Trigger>(
-      "start_stop_recording", std::bind(&InspectImageRecorderNode::start_stop_recording, this, std::placeholders::_1, std::placeholders::_2));
-    _sub_odometry = this->create_subscription<nav_msgs::msg::Odometry>(
-      "odometry", 2, std::bind(&InspectImageRecorderNode::callback_odometry, this, std::placeholders::_1));
+    _pub_image_left = create_publisher<sensor_msgs::msg::Image>(
+      "inspect/image_left",
+      rclcpp::QoS(2).best_effort()
+    );
+    _pub_image_right = create_publisher<sensor_msgs::msg::Image>(
+      "inspect/image_right",
+      rclcpp::QoS(2).best_effort()
+    );
+    _srv_start_stop = create_service<std_srvs::srv::Trigger>(
+      "start_stop_recording",
+      std::bind(&InspectImageRecorderNode::start_stop_recording, this, std::placeholders::_1, std::placeholders::_2)
+    );
+    _sub_odometry = create_subscription<nav_msgs::msg::Odometry>(
+      "odometry", 2,
+      std::bind(&InspectImageRecorderNode::callback_odometry, this, std::placeholders::_1)
+    );
     _last_publish_time = this->now();
     _last_odometry = _last_publish_time;
   }
@@ -101,12 +111,17 @@ private:
     // }
 
     // Save images
-    auto t = std::time(nullptr);
+    // timestamp with milliseconds for unique filenames
+    // image should have format "YYYY.MM.DD_HH:MM:SS_ms" for easy sorting and readability
+    auto now_chrono = std::chrono::system_clock::now();
+    auto t = std::chrono::system_clock::to_time_t(now_chrono);
     auto tm = *std::localtime(&t);
-    char timestamp[32];
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now_chrono.time_since_epoch()) % 1000;
+    char timestamp[40];
     std::strftime(timestamp, sizeof(timestamp), "%Y.%m.%d_%H:%M:%S", &tm);
-    std::string filename_left = _output_dir_left + "/" + timestamp + "_inspect_left.jpg";
-    std::string filename_right = _output_dir_right + "/" + timestamp + "_inspect_right.jpg";
+    std::string timestamp_ms = std::string(timestamp) + "_" + std::to_string(ms.count());
+    std::string filename_left = _output_dir_left + "/" + timestamp_ms + "_inspect_left.jpg";
+    std::string filename_right = _output_dir_right + "/" + timestamp_ms + "_inspect_right.jpg";
     cv::imwrite(filename_left, frame_left);
     cv::imwrite(filename_right, frame_right);
 
