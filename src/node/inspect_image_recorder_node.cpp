@@ -10,7 +10,6 @@
 #include <std_srvs/srv/trigger.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <cv_bridge/cv_bridge.hpp>
-#include <image_transport/image_transport.hpp>
 #include <opencv2/opencv.hpp>
 #include <filesystem>
 #include <string>
@@ -70,8 +69,8 @@ public:
       return;
     }
 
-    _pub_image_left = image_transport::create_publisher(this, "inspect/image_left");
-    _pub_image_right = image_transport::create_publisher(this, "inspect/image_right");
+    _pub_image_left = this->create_publisher<sensor_msgs::msg::Image>("inspect/image_left", 10);
+    _pub_image_right = this->create_publisher<sensor_msgs::msg::Image>("inspect/image_right", 10);
     _srv_start_stop = this->create_service<std_srvs::srv::Trigger>(
       "start_stop_recording", std::bind(&InspectImageRecorderNode::start_stop_recording, this, std::placeholders::_1, std::placeholders::_2));
     _sub_odometry = this->create_subscription<nav_msgs::msg::Odometry>(
@@ -122,8 +121,8 @@ private:
       header.frame_id = "camera";
       sensor_msgs::msg::Image::SharedPtr img_msg_left = cv_bridge::CvImage(header, "bgr8", frame_left).toImageMsg();
       sensor_msgs::msg::Image::SharedPtr img_msg_right = cv_bridge::CvImage(header, "bgr8", frame_right).toImageMsg();
-      _pub_image_left.publish(*img_msg_left);
-      _pub_image_right.publish(*img_msg_right);
+      _pub_image_left->publish(*img_msg_left);
+      _pub_image_right->publish(*img_msg_right);
       _last_publish_time = now;
     }
   }
@@ -139,6 +138,7 @@ private:
       return;
     }
 
+    // distance threshold reached, capture images
     _distance = 0.0;
     RCLCPP_INFO(this->get_logger(), "distance threshold reached --> triggering image capture");
     capture_images();
@@ -166,8 +166,8 @@ private:
 
   cv::VideoCapture _cap_left;
   cv::VideoCapture _cap_right;
-  image_transport::Publisher _pub_image_left;
-  image_transport::Publisher _pub_image_right;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr _pub_image_left;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr _pub_image_right;
   rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr _srv_start_stop;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr _sub_odometry;
   std::unique_ptr<GstreamPipeline> _pipeline_left;
