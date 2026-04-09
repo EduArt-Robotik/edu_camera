@@ -142,14 +142,30 @@ void VideoStreamServer::addStreamClient(
   (void)request;
   (void)response;
 
-  const auto search = _stream_output.find(request->pipeline);
+  const auto search_stream = _stream_output.find(request->pipeline);
+  const auto search_builder = _builders.find(request->pipeline);
 
-  if (search != _stream_output.end()) {
+  if (search_stream != _stream_output.end()) {
     RCLCPP_INFO(
       rclcpp::get_logger("VideoStreamServer"), "Client subscribed to stream: %s", request->pipeline.c_str()
     );
     response->success = true;
     response->message = "Subscribed to stream: " + request->pipeline;
+  } else if (search_builder != _builders.end()) {
+    RCLCPP_INFO(
+      rclcpp::get_logger("VideoStreamServer"), "Client subscribed to stream builder: %s", request->pipeline.c_str()
+    );
+    auto& builder = search_builder->second;
+    auto output = builder->buildOutput(request->ip, request->port);
+
+    if (output) {
+      _stream_output[request->pipeline] = std::move(output);
+      response->success = true;
+      response->message = "Subscribed to stream builder: " + request->pipeline;
+    } else {
+      response->success = false;
+      response->message = "Failed to create stream output for: " + request->pipeline;
+    }
   } else {
     RCLCPP_ERROR(
       rclcpp::get_logger("VideoStreamServer"),

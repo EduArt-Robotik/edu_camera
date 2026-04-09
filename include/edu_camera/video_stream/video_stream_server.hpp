@@ -56,6 +56,18 @@ public:
   }
 
   /**
+
+   * @brief Add a new stream builder. This allows to create different types of stream outputs (e.g. RTMP, WebRTC, etc.)
+   *        and allows to parameterize them on runtime.
+   * @param name Name of the stream builder
+   * @param builder Unique pointer to the stream builder
+   */
+  void addBuilder(
+    const std::string& name, std::unique_ptr<VideoStreamBuilder> builder) {
+    _builders[name] = std::move(builder);
+  }
+
+  /**
    * @brief Update network metrics for adaptive adjustment
    * @param metrics Network metrics (latency, packet loss, bandwidth)
    */
@@ -94,6 +106,7 @@ private:
     edu_camera::srv::SubscribeToStream::Response::SharedPtr response);
 
   std::unordered_map<std::string, std::unique_ptr<VideoStreamOutput>> _stream_output;
+  std::unordered_map<std::string, std::unique_ptr<VideoStreamBuilder>> _builders;
   QualitySettings _quality_settings;
 
   std::shared_ptr<rclcpp::Service<edu_camera::srv::SubscribeToStream>> _sub_scribe_service;

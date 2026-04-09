@@ -154,7 +154,7 @@ void VideoGstreamOutput::encodeAndSendFrame(const cv::Mat& frame, const Codec co
 }
 
 
-VideoGstreamInput::VideoGstreamInput(int port)
+VideoGstreamInput::VideoGstreamInput(const std::uint32_t port)
   : _pipeline(nullptr)
   , _port(port)
   , _is_initialized(false)
@@ -186,6 +186,32 @@ void VideoGstreamInput::receiveFrameAndDecode(cv::Mat& frame)
   }
 
   
+}
+
+
+VideoGstreamBuilder::VideoGstreamBuilder(
+  const VideoGstreamOutput::Parameter& parameter, const camera::VideoCamera::Parameter& camera_parameter,
+  const QualitySettings& quality_settings)
+  : _parameter(parameter),
+    _camera_parameter(camera_parameter),
+    _quality_settings(quality_settings)
+{
+  
+}
+
+std::unique_ptr<VideoStreamOutput> VideoGstreamBuilder::buildOutput(const std::string& ip_address, const std::uint32_t port)
+{
+  _parameter.destination = ip_address;
+  _parameter.port = port;
+
+  return std::make_unique<VideoGstreamOutput>(
+    _parameter, _camera_parameter, _quality_settings
+  );
+}
+
+std::unique_ptr<VideoStreamInput> VideoGstreamBuilder::buildInput(const std::uint32_t port)
+{
+  return std::make_unique<VideoGstreamInput>(port);
 }
 
 } // namespace video_stream
