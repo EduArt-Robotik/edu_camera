@@ -22,6 +22,7 @@ public:
     NV12,
     YUYV,
     BGR,
+    UNKNOWN
   };
 
   Codec() = default;
@@ -53,12 +54,19 @@ public:
       case Type::NV12: return "NV12";
       case Type::YUYV: return "YUYV";
       case Type::BGR: return "BGR";
-      default: return "Unknown";
+      default: return "UNKNOWN";
     }
   }
 
+  inline bool operator==(const Codec& other) const {
+    return type_ == other.type_;
+  }
+  inline bool operator!=(const Codec& other) const {
+    return !(*this == other);
+  }
+
 private:
-  Type type_ = Type::BGR;
+  Type type_ = Type::UNKNOWN;
 };
 
 } // namespace video_stream

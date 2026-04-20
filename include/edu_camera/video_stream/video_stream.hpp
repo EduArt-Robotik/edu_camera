@@ -60,18 +60,7 @@ class VideoStreamInput
 public:
   virtual ~VideoStreamInput() = default;
 
-  virtual void receiveFrameAndDecode(cv::Mat& frame) = 0;
-};
-
-
-class VideoStreamBuilder
-{
-public:
-  virtual ~VideoStreamBuilder() = default;
-
-  virtual std::unique_ptr<VideoStreamOutput> buildOutput(const std::string& ip_address, const std::uint32_t port) = 0;
-
-  virtual std::unique_ptr<VideoStreamInput> buildInput(const std::uint32_t port) = 0;
+  virtual void receiveFrameAndDecode(cv::Mat& frame, Codec& codec, const std::chrono::nanoseconds timeout) = 0;
 };
 
 } // namespace video_stream

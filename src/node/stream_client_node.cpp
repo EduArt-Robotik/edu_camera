@@ -1,45 +1,63 @@
-#include <edu_camera/video_stream/video_gstream.hpp>
+#include <edu_camera/video_stream/video_stream_builder.hpp>
+#include <edu_camera/video_stream/video_stream_client.hpp>
 
 #include <opencv2/highgui.hpp>
 #include <rclcpp/rclcpp.hpp>
 
-using eduart::camera::video_stream::GstreamPipeline;
-using eduart::camera::video_stream::GstreamPipelineBuilder;
+using eduart::camera::video_stream::VideoStreamBuilder;
+using eduart::camera::video_stream::VideoStreamClient;
 using eduart::camera::video_stream::Codec;
+
+using namespace std::chrono_literals;
 
 int main(int argc, char *argv[])
 {
   rclcpp::init(argc, argv);
 
-  GstreamPipelineBuilder builder(5000); // UDP port for receiving stream
+  auto node = rclcpp::Node::make_shared("video_stream_client");
+  auto builder = std::make_unique<VideoStreamBuilder>();
+  VideoStreamClient client(std::move(builder), *node);
 
-  auto pipeline = builder.addRtpDepayloader("rtp_depay_loader")
-                         .addH264Parser("h264_parser")
-                         .addDecoderH264("h264_decoder")
-                         .addVideoConvert("videoconvert")
-                         .addAppSink("sink")
-                         .build();
+  if (!client.initialize()) {
+    RCLCPP_ERROR(node->get_logger(), "failed to initialize video stream client");
+    return 1;
+  }
 
-  cv::Mat frame;
-  Codec codec;
-  rclcpp::Rate loop_rate(30); // 30 Hz to cover typical video frame rates
+  RCLCPP_INFO(node->get_logger(), "connecting to stream");
 
+  // connect to stream
+  while (!client.isConnected() && rclcpp::ok()) {
+    std::cout << "Trying to connect to stream..." << std::endl;
+    client.connect();
+    rclcpp::spin_some(node);
+    std::this_thread::sleep_for(3s);
+  }
+
+  RCLCPP_INFO(node->get_logger(), "connected to stream, now receiving frames");
+
+  // connected to stream, now receive frames and display them
   while (rclcpp::ok()) {
-    if (pipeline->receiveFrame(frame, codec)) {
-      std::cout << "frame received, size: " << frame.cols << "x" << frame.rows << ", codec: " << static_cast<int>(codec.type()) << std::endl;
+    // first spin node to process callbacks
+    rclcpp::spin_some(node);
 
+    // second receive frame from stream
+    cv::Mat frame;
+    Codec codec;
+
+    if (client.receiveFrame(frame, codec, 1s)) {   
+      std::cout << "got frame from stream, codec: " << codec.to_string() << std::endl; 
       if (frame.empty()) {
-        std::cerr << "Received empty frame, skipping display." << std::endl;
+        RCLCPP_ERROR(node->get_logger() ,"received empty frame --> skipping displaying frame.");
         continue;
       }
-      // Process received frame (e.g., display or analyze)
+
+      // \todo use codec information
       cv::imshow("Received Frame", frame);
       if (cv::waitKey(1) == 27) { // Exit on 'ESC' key
         break;
       }
     }
 
-    loop_rate.sleep();
   }
 
   rclcpp::shutdown();

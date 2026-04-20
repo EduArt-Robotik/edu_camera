@@ -4,6 +4,7 @@ add_library(video_stream SHARED
   video_stream_client.cpp
   video_gstream.cpp
   gstream_pipeline.cpp
+  video_stream_builder.cpp
 )
 target_include_directories(video_stream
   PUBLIC

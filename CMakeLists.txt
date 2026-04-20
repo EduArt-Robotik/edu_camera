@@ -29,6 +29,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 # Messages
 # Services
   "srv/SubscribeToStream.srv"
+  "srv/UnsubscribeFromStream.srv"
 #  DEPENDENCIES
 )
 # Create a target that can be used by all buildiung targets when the custom message are required for them.

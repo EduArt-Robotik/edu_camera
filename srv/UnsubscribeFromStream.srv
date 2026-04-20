@@ -1,0 +1,6 @@
+# request
+uint64 output_id
+---
+# response
+bool success
+string message

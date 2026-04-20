@@ -25,7 +25,6 @@ public:
   struct Parameter {
     std::string destination = "127.0.0.1";
     std::uint32_t port = 5000;
-    Codec input_codec = Codec(Codec::Type::BGR);
     std::vector<PipelineElement> pipeline_elements;
   };
 
@@ -51,37 +50,30 @@ private:
 class VideoGstreamInput : public VideoStreamInput
 {
 public:
-  VideoGstreamInput(const std::uint32_t port = 5000);
+  struct PipelineElement {
+    std::string name;
+    std::string type;
+  };
+
+  struct Parameter {
+    std::uint32_t port = 5000;
+    Codec codec{Codec::Type::BGR};              // codec must fit to sender pipeline
+    std::vector<PipelineElement> pipeline_elements;  // pipeline elements must fit to sender pipeline and codec
+  };
+
+  VideoGstreamInput(const Parameter& parameter);
   ~VideoGstreamInput() override;
 
-  void receiveFrameAndDecode(cv::Mat& frame) override;
+  void receiveFrameAndDecode(cv::Mat& frame, Codec& codec, const std::chrono::nanoseconds timeout) override;
 
 private:
   void initialize();
 
-  std::unique_ptr<GstreamPipeline> _pipeline;
-  
-  std::uint32_t _port = 5000;
+  const Parameter _parameter;
+  std::unique_ptr<GstreamPipeline> _pipeline;  
   bool _is_initialized = false;
 };
 
-
-class VideoGstreamBuilder : public VideoStreamBuilder
-{
-public:
-  VideoGstreamBuilder(
-    const VideoGstreamOutput::Parameter& parameter, const camera::VideoCamera::Parameter& camera_parameter,
-    const QualitySettings& quality_settings);
-  ~VideoGstreamBuilder() override = default;
-
-  std::unique_ptr<VideoStreamOutput> buildOutput(const std::string& ip_address, const std::uint32_t port) override;
-  std::unique_ptr<VideoStreamInput> buildInput(const std::uint32_t port) override;
-
-private:
-  VideoGstreamOutput::Parameter _parameter;
-  camera::VideoCamera::Parameter _camera_parameter;
-  QualitySettings _quality_settings;
-};
 
 } // namespace video_stream
 } // namespace camera

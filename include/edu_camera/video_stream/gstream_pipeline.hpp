@@ -42,7 +42,15 @@ public:
 
   void set(const std::string& element_name, const char* property_name, const int value);
   void sendFrame(const cv::Mat& frame, const Codec codec);
-  bool receiveFrame(cv::Mat& frame, Codec& codec);
+  /**
+   * @brief receive a frame from the pipeline (blocking call until frame is received or timeout is reached)
+   * @param frame received frame will be stored here
+   * @param codec code of received frame
+   * @param timeout maximum time to wait for a frame, 0 means wait indefinitely
+   * @return true if frame was received, false if timeout was reached or an error occurred
+   */
+  bool receiveFrame(
+    cv::Mat& frame, Codec& codec, const std::chrono::nanoseconds timeout = std::chrono::nanoseconds(0));
   // \todo add callback method technique for receiving frames via callback.
 
 private:
@@ -53,6 +61,7 @@ private:
   std::array<cv::Mat, BUFFER_SIZE> _frame_buffer; // buffering frames until they have been send
   std::array<std::atomic<bool>, BUFFER_SIZE> _frame_sent; // flags to indicate if frame has been sent
   std::size_t _buffer_index = 0; // index to keep track of current frame in buffer
+  Codec _codec{Codec::Type::UNKNOWN};
 };
 
 class GstreamPipelineBuilder
@@ -62,7 +71,7 @@ public:
   GstreamPipelineBuilder(const camera::VideoCamera::Parameter& camera_parameter, const Codec input_codec);
   
   // Constructor for receiver pipeline (udpsrc-based)
-  GstreamPipelineBuilder(const int udp_port);
+  GstreamPipelineBuilder(const int udp_port, const Codec output_codec);
   
   GstreamPipelineBuilder& addDecoderMJpeg(const std::string& name);
   GstreamPipelineBuilder& addCapFilter(const std::string& name, const int width, const int height);

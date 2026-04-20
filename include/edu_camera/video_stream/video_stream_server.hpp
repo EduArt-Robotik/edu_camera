@@ -8,7 +8,10 @@
 #include "edu_camera/video_stream/network_metric.hpp"
 #include "edu_camera/video_stream/quality_settings.hpp"
 #include "edu_camera/video_stream/video_stream.hpp"
+#include "edu_camera/video_stream/video_stream_builder.hpp"
+
 #include "edu_camera/srv/subscribe_to_stream.hpp"
+#include "edu_camera/srv/unsubscribe_from_stream.hpp"
 
 #include <memory>
 
@@ -23,7 +26,9 @@ namespace video_stream {
 class VideoStreamServer
 {
 public:
-  VideoStreamServer();
+  VideoStreamServer(
+    const camera::VideoCamera::Parameter& camera_parameter, std::unique_ptr<VideoStreamBuilder> builder,
+    rclcpp::Node& node);
   virtual ~VideoStreamServer();
   
   /**
@@ -47,24 +52,13 @@ public:
   bool sendFrame(const cv::Mat& frame, const Codec codec);
 
   /**
-   * @brief Add a new stream output. This allows to send the same frame to multiple outputs (e.g. RTMP, WebRTC, etc.)
-   * @param name Name of the stream output
-   * @param output Unique pointer to the stream output
-   */
-  inline void addStreamOutput(const std::string& name, std::unique_ptr<VideoStreamOutput> output) {
-    _stream_output[name] = std::move(output);
-  }
-
-  /**
 
    * @brief Add a new stream builder. This allows to create different types of stream outputs (e.g. RTMP, WebRTC, etc.)
    *        and allows to parameterize them on runtime.
-   * @param name Name of the stream builder
    * @param builder Unique pointer to the stream builder
    */
-  void addBuilder(
-    const std::string& name, std::unique_ptr<VideoStreamBuilder> builder) {
-    _builders[name] = std::move(builder);
+  void setBuilder(std::unique_ptr<VideoStreamBuilder> builder) {
+    _stream_builder = std::move(builder);
   }
 
   /**
@@ -104,12 +98,17 @@ private:
   void addStreamClient(
     edu_camera::srv::SubscribeToStream::Request::SharedPtr request,
     edu_camera::srv::SubscribeToStream::Response::SharedPtr response);
+  void removeStreamClient(
+    edu_camera::srv::UnsubscribeFromStream::Request::SharedPtr request,
+    edu_camera::srv::UnsubscribeFromStream::Response::SharedPtr response);
 
-  std::unordered_map<std::string, std::unique_ptr<VideoStreamOutput>> _stream_output;
-  std::unordered_map<std::string, std::unique_ptr<VideoStreamBuilder>> _builders;
+  std::unordered_map<std::size_t, std::unique_ptr<VideoStreamOutput>> _stream_output;
+  camera::VideoCamera::Parameter _camera_parameter;
+  std::unique_ptr<VideoStreamBuilder> _stream_builder;
   QualitySettings _quality_settings;
 
-  std::shared_ptr<rclcpp::Service<edu_camera::srv::SubscribeToStream>> _sub_scribe_service;
+  std::shared_ptr<rclcpp::Service<edu_camera::srv::SubscribeToStream>> _service_subscribe_to_stream;
+  std::shared_ptr<rclcpp::Service<edu_camera::srv::UnsubscribeFromStream>> _service_unsubscribe_from_stream;
 };
 
 } // namespace video_stream

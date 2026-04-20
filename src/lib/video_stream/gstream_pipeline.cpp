@@ -55,6 +55,11 @@ void GstreamPipeline::sendFrame(const cv::Mat& frame, const Codec codec)
       frame.cols, frame.rows, _frame_size.width, _frame_size.height);
     return;
   }
+  if (codec != _codec) {
+    RCLCPP_ERROR(rclcpp::get_logger("GstreamPipeline"), "frame codec '%s' does not match pipeline codec '%s'",
+      codec.to_string().c_str(), _codec.to_string().c_str());
+    return;
+  }
 
   // getting next buffer index in ring buffer
   if (++_buffer_index >= BUFFER_SIZE) {
@@ -103,7 +108,7 @@ void GstreamPipeline::sendFrame(const cv::Mat& frame, const Codec codec)
   }
 }
 
-bool GstreamPipeline::receiveFrame(cv::Mat& frame, Codec& codec)
+bool GstreamPipeline::receiveFrame(cv::Mat& frame, Codec& codec, const std::chrono::nanoseconds timeout)
 {
   auto it = _elements.find("sink");
   if (it == _elements.end()) {
@@ -112,7 +117,14 @@ bool GstreamPipeline::receiveFrame(cv::Mat& frame, Codec& codec)
   }
 
   GstElement* appsink = it->second;
-  GstSample* sample = gst_app_sink_pull_sample(GST_APP_SINK(appsink));
+  GstSample* sample = nullptr;
+  
+  if (timeout.count() > 0) {
+    sample = gst_app_sink_try_pull_sample(GST_APP_SINK(appsink), static_cast<gint64>(timeout.count()));
+  }
+  else {
+    sample = gst_app_sink_pull_sample(GST_APP_SINK(appsink));
+  }
   
   if (!sample) {
     return false;  // No frame available yet
@@ -145,7 +157,7 @@ bool GstreamPipeline::receiveFrame(cv::Mat& frame, Codec& codec)
     map.data,
     stride
   ).clone(); // clone() is important, as map.data becomes invalid after unmap
-  codec = Codec(Codec::Type::BGR); // assuming videoconvert is used to convert to BGR format, so yes it smells a bit, but it works for now
+  codec = _codec;
 
   gst_buffer_unmap(buffer, &map);
   gst_sample_unref(sample);
@@ -158,6 +170,7 @@ bool GstreamPipeline::receiveFrame(cv::Mat& frame, Codec& codec)
 
 GstreamPipelineBuilder::GstreamPipelineBuilder(const camera::VideoCamera::Parameter& camera_parameter, const Codec input_codec)
 {
+  // \todo input codec is not checked of validity. Pipeline must fit to codec!
   _pipeline = std::make_unique<GstreamPipeline>();
   _pipeline->_pipeline = gst_pipeline_new("video-output-pipeline");
 
@@ -198,10 +211,12 @@ GstreamPipelineBuilder::GstreamPipelineBuilder(const camera::VideoCamera::Parame
   _pipeline->_elements["source"] = appsrc;
   _pipeline->_element_order.push_back(appsrc);
   _pipeline->_frame_size = camera_parameter.resolution;
+  _pipeline->_codec = input_codec;
 }
 
-GstreamPipelineBuilder::GstreamPipelineBuilder(const int udp_port)
+GstreamPipelineBuilder::GstreamPipelineBuilder(const int udp_port, const Codec output_codec)
 {
+  // \todo output codec is not checked of validity. Pipeline must fit to codec!
   _pipeline = std::make_unique<GstreamPipeline>();
   _pipeline->_pipeline = gst_pipeline_new("video-input-pipeline");
 
@@ -226,6 +241,7 @@ GstreamPipelineBuilder::GstreamPipelineBuilder(const int udp_port)
 
   _pipeline->_elements["source"] = udpsrc;
   _pipeline->_element_order.push_back(udpsrc);
+  _pipeline->_codec = output_codec;
 }
 
 GstreamPipelineBuilder& GstreamPipelineBuilder::addDecoderMJpeg(const std::string& name)

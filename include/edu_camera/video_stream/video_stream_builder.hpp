@@ -5,18 +5,29 @@
  */
 #pragma once
 
+#include "edu_camera/camera/video_camera.hpp"
+
+#include <memory>
+#include <string>
+#include <cstdint>
+
 namespace eduart {
 namespace camera {
 namespace video_stream {
 
-/**
- * @brief Builder class for creating video stream objects. Its used by the video
- * stream server for creating video streams that are preconfigured.
- */
+class VideoStreamOutput;
+class VideoStreamInput;
+
+// This class should help creating different types of stream outputs. It isn't the way I would like to have but it
+// works at the moment.
 class VideoStreamBuilder
 {
 public:
-
+  virtual ~VideoStreamBuilder() = default;
+  std::unique_ptr<VideoStreamOutput> buildOutput(
+    const std::string& pipeline, camera::VideoCamera::Parameter& camera_parameter,
+    const std::string& ip_address, const std::uint32_t port);
+  std::unique_ptr<VideoStreamInput> buildInput(const std::string& pipeline, const std::uint32_t port);
 };
 
 } // namespace video_stream

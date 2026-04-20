@@ -15,6 +15,18 @@ namespace eduart {
 namespace camera {
 namespace video_stream {
 
+static void initialize_gst()
+{
+  /// Flag to ensure GStreamer is initialized only once per process
+  static bool gst_initialized = false;
+
+  if (!gst_initialized) {
+    gst_init(nullptr, nullptr);
+    gst_initialized = true;
+    RCLCPP_INFO(rclcpp::get_logger("VideoGstreamPipeline"), "GStreamer initialized");
+  }
+}
+
 VideoGstreamOutput::Parameter VideoGstreamOutput::get_parameter(const Parameter &default_parameter, rclcpp::Node &node)
 {
   Parameter parameter = default_parameter;
@@ -65,6 +77,7 @@ VideoGstreamOutput::VideoGstreamOutput(
   , _parameter(parameter)
 {
   // Initialize GStreamer
+  initialize_gst();
   initialize();
 }
 
@@ -82,14 +95,7 @@ void VideoGstreamOutput::initialize()
   const auto& settings = getQualitySettings();
   const auto& camera_parameter = getCameraParameter();
   
-  GstreamPipelineBuilder builder(camera_parameter, _parameter.input_codec);
-
-  // _pipeline = builder.addVideoConvert("video_converter")
-  //                    .addVideoScale("video_scaler")
-  //                    .addEncoderH264("encoder", 5000)
-  //                    .addRtpPayloader("rtp_payloader")
-  //                    .addUdpSink("udp_sink", _parameter.destination, _parameter.port)
-  //                    .build();
+  GstreamPipelineBuilder builder(camera_parameter, camera_parameter.codec);
 
   for (const auto& element : _parameter.pipeline_elements) {
     if (element.type == "videoconvert") {
@@ -154,13 +160,14 @@ void VideoGstreamOutput::encodeAndSendFrame(const cv::Mat& frame, const Codec co
 }
 
 
-VideoGstreamInput::VideoGstreamInput(const std::uint32_t port)
-  : _pipeline(nullptr)
-  , _port(port)
+VideoGstreamInput::VideoGstreamInput(const Parameter& parameter)
+  : _parameter(parameter)
+  , _pipeline(nullptr)
   , _is_initialized(false)
 {
   // Initialize GStreamer
-  gst_init(nullptr, nullptr);
+  initialize_gst();
+  initialize();
 }
 
 VideoGstreamInput::~VideoGstreamInput()
@@ -174,44 +181,47 @@ void VideoGstreamInput::initialize()
     return;
   }
 
+  GstreamPipelineBuilder builder(_parameter.port, _parameter.codec);
+
+  for (const auto& element : _parameter.pipeline_elements) {
+    if (element.type == "videoconvert") {
+      builder.addVideoConvert(element.name);
+    } else if (element.type == "videoscale") {
+      builder.addVideoScale(element.name);
+    } else if (element.type == "rtp_h264_depayloader") {
+      builder.addRtpDepayloader(element.name);
+    } else if (element.type == "decoder_h264") {
+      builder.addDecoderH264(element.name);
+    } else if (element.type == "decoder_mjpeg") {
+      builder.addDecoderMJpeg(element.name);
+    } else if (element.type == "appsink") {
+      builder.addAppSink(element.name);
+    } else {
+      RCLCPP_FATAL(
+        rclcpp::get_logger("VideoGstreamOutput"), "unknown pipeline element type '%s' for element '%s'.",
+        element.type.c_str(), element.name.c_str()
+      );
+    }
+  }
+
+  builder.addAppSink("sink");
+  _pipeline = builder.build();
+
   _is_initialized = true;
-  RCLCPP_INFO(rclcpp::get_logger("VideoGstreamInput"), "GStreamer input pipeline initialized (UDP port %d)", _port);
+  RCLCPP_INFO(
+    rclcpp::get_logger("VideoGstreamInput"), "GStreamer input pipeline initialized (UDP port %d)",
+    _parameter.port
+  );
 }
 
-void VideoGstreamInput::receiveFrameAndDecode(cv::Mat& frame)
+void VideoGstreamInput::receiveFrameAndDecode(cv::Mat& frame, Codec& codec, const std::chrono::nanoseconds timeout)
 {
   // Initialize pipeline on first call
   if (!_is_initialized) {
     return;
   }
 
-  
-}
-
-
-VideoGstreamBuilder::VideoGstreamBuilder(
-  const VideoGstreamOutput::Parameter& parameter, const camera::VideoCamera::Parameter& camera_parameter,
-  const QualitySettings& quality_settings)
-  : _parameter(parameter),
-    _camera_parameter(camera_parameter),
-    _quality_settings(quality_settings)
-{
-  
-}
-
-std::unique_ptr<VideoStreamOutput> VideoGstreamBuilder::buildOutput(const std::string& ip_address, const std::uint32_t port)
-{
-  _parameter.destination = ip_address;
-  _parameter.port = port;
-
-  return std::make_unique<VideoGstreamOutput>(
-    _parameter, _camera_parameter, _quality_settings
-  );
-}
-
-std::unique_ptr<VideoStreamInput> VideoGstreamBuilder::buildInput(const std::uint32_t port)
-{
-  return std::make_unique<VideoGstreamInput>(port);
+  _pipeline->receiveFrame(frame, codec, timeout);
 }
 
 } // namespace video_stream

@@ -4,5 +4,6 @@ string ip
 uint32 port
 ---
 # response
+uint64 output_id
 bool success
 string message
