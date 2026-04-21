@@ -49,7 +49,7 @@ public:
   /**
    * @brief Connect to the video stream. This will send a request to the server and create a stream input.
    */
-  void connect();
+  void connect(const std::string& ip_address = "127.0.0.1");
   rclcpp::Client<edu_camera::srv::UnsubscribeFromStream>::SharedFutureAndRequestId disconnect();
   inline bool isConnected() const { return _stream_input != nullptr; }
 

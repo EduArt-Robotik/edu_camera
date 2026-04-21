@@ -28,7 +28,7 @@ int main(int argc, char *argv[])
   // connect to stream
   while (!client.isConnected() && rclcpp::ok()) {
     std::cout << "Trying to connect to stream..." << std::endl;
-    client.connect();
+    client.connect("192.168.42.143");
     rclcpp::spin_some(node);
     std::this_thread::sleep_for(3s);
   }

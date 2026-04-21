@@ -39,7 +39,7 @@ bool VideoStreamClient::initialize()
   return true;
 }
 
-void VideoStreamClient::connect()
+void VideoStreamClient::connect(const std::string& ip_address)
 {
   if (!_is_initialized) {
     RCLCPP_ERROR(rclcpp::get_logger("VideoStreamClient"), "client not initialized");
@@ -51,7 +51,7 @@ void VideoStreamClient::connect()
   }
 
   auto request = std::make_shared<edu_camera::srv::SubscribeToStream::Request>();
-  request->ip = "127.0.0.1";
+  request->ip = ip_address;
   request->port = 5000;
   request->pipeline = "gstream_udp";
 
