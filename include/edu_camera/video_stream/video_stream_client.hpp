@@ -50,7 +50,7 @@ public:
    * @brief Connect to the video stream. This will send a request to the server and create a stream input.
    */
   void connect();
-  void disconnect();
+  rclcpp::Client<edu_camera::srv::UnsubscribeFromStream>::SharedFutureAndRequestId disconnect();
   inline bool isConnected() const { return _stream_input != nullptr; }
 
   /**
@@ -78,6 +78,7 @@ public:
   void shutdown();
 
 private:
+  rclcpp::Node& _node;
   bool _is_initialized = false;
   std::unique_ptr<VideoStreamBuilder> _stream_builder;
   std::shared_ptr<rclcpp::Client<edu_camera::srv::SubscribeToStream>> _client_subscribe_to_stream;

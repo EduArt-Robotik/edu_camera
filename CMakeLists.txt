@@ -46,12 +46,12 @@ install(
   DIRECTORY include/
   DESTINATION include
 )
-# install(
-#   DIRECTORY
-#     launch
-#     parameter
-#   DESTINATION share/${PROJECT_NAME}
-# )
+install(
+  DIRECTORY
+    launch
+    # parameter
+  DESTINATION share/${PROJECT_NAME}
+)
 
 message(STATUS "Nodes: ${BUILT_NODES}")
 install(

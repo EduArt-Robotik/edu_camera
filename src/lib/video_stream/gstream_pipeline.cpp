@@ -127,6 +127,8 @@ bool GstreamPipeline::receiveFrame(cv::Mat& frame, Codec& codec, const std::chro
   }
   
   if (!sample) {
+    frame.release();
+    codec = Codec{Codec::Type::UNKNOWN};
     return false;  // No frame available yet
   }
 
@@ -176,7 +178,7 @@ GstreamPipelineBuilder::GstreamPipelineBuilder(const camera::VideoCamera::Parame
 
   // App source (entry point of pipeline)
   auto appsrc = gst_element_factory_make("appsrc", "source");
-  const auto format_str = input_codec.to_string();
+  const std::string format_str = input_codec.to_string();
   GstCaps* caps = nullptr;
 
   // if (camera_parameter.codec.type() == Codec::Type::MJPEG) {
@@ -222,6 +224,12 @@ GstreamPipelineBuilder::GstreamPipelineBuilder(const int udp_port, const Codec o
 
   // UDP source (entry point of pipeline for receiver)
   auto udpsrc = gst_element_factory_make("udpsrc", "source");
+  if (!udpsrc) {
+    RCLCPP_FATAL(
+      rclcpp::get_logger("GstreamPipelineBuilder"), "failed to create 'udpsrc' element - GStreamer plugin may not be installed"
+    );
+    return;
+  }
 
   // Configure UDP source with RTP caps
   GstCaps* caps = gst_caps_new_simple("application/x-rtp",
@@ -247,6 +255,12 @@ GstreamPipelineBuilder::GstreamPipelineBuilder(const int udp_port, const Codec o
 GstreamPipelineBuilder& GstreamPipelineBuilder::addDecoderMJpeg(const std::string& name)
 {
   auto decoder = gst_element_factory_make("jpegdec", name.c_str());
+  if (!decoder) {
+    RCLCPP_FATAL(
+      rclcpp::get_logger("GstreamPipelineBuilder"), "failed to create 'jpegdec' element - GStreamer plugin may not be installed"
+    );
+    return *this;
+  }
   _pipeline->_elements[name] = decoder;
   _pipeline->_element_order.push_back(decoder);
 
@@ -256,6 +270,12 @@ GstreamPipelineBuilder& GstreamPipelineBuilder::addDecoderMJpeg(const std::strin
 GstreamPipelineBuilder& GstreamPipelineBuilder::addCapFilter(const std::string& name, const int width, const int height)
 {
   auto capfilter = gst_element_factory_make("capsfilter", name.c_str());
+  if (!capfilter) {
+    RCLCPP_FATAL(
+      rclcpp::get_logger("GstreamPipelineBuilder"), "failed to create 'capsfilter' element - GStreamer plugin may not be installed"
+    );
+    return *this;
+  }
   _pipeline->_elements[name] = capfilter;
   _pipeline->_element_order.push_back(capfilter);
 
@@ -274,6 +294,12 @@ GstreamPipelineBuilder& GstreamPipelineBuilder::addCapFilter(const std::string& 
 GstreamPipelineBuilder& GstreamPipelineBuilder::addVideoConvert(const std::string& name)
 {
   auto videoconvert = gst_element_factory_make("videoconvert", name.c_str());
+  if (!videoconvert) {
+    RCLCPP_FATAL(
+      rclcpp::get_logger("GstreamPipelineBuilder"), "failed to create 'videoconvert' element - GStreamer plugin may not be installed"
+    );
+    return *this;
+  }
   _pipeline->_elements[name] = videoconvert;
   _pipeline->_element_order.push_back(videoconvert);
 
@@ -283,6 +309,12 @@ GstreamPipelineBuilder& GstreamPipelineBuilder::addVideoConvert(const std::strin
 GstreamPipelineBuilder& GstreamPipelineBuilder::addVideoScale(const std::string& name)
 {
   auto videoscale = gst_element_factory_make("videoscale", name.c_str());
+  if (!videoscale) {
+    RCLCPP_FATAL(
+      rclcpp::get_logger("GstreamPipelineBuilder"), "failed to create 'videoscale' element - GStreamer plugin may not be installed"
+    );
+    return *this;
+  }
   _pipeline->_elements[name] = videoscale;
   _pipeline->_element_order.push_back(videoscale);
 
@@ -292,6 +324,12 @@ GstreamPipelineBuilder& GstreamPipelineBuilder::addVideoScale(const std::string&
 GstreamPipelineBuilder& GstreamPipelineBuilder::addEncoderH264(const std::string& name, const int bitrate_kbps)
 {
   auto encoder = gst_element_factory_make("x264enc", name.c_str());
+  if (!encoder) {
+    RCLCPP_FATAL(
+      rclcpp::get_logger("GstreamPipelineBuilder"), "failed to create 'x264enc' element - GStreamer plugin may not be installed"
+    );
+    return *this;
+  }
   _pipeline->_elements[name] = encoder;
   _pipeline->_element_order.push_back(encoder);
 
@@ -326,6 +364,12 @@ GstreamPipelineBuilder& GstreamPipelineBuilder::addUdpSink(
   const std::string& name, const std::string& host, const int port)
 {
   auto udpsink = gst_element_factory_make("udpsink", name.c_str());
+  if (!udpsink) {
+    RCLCPP_FATAL(
+      rclcpp::get_logger("GstreamPipelineBuilder"), "failed to create 'udpsink' element - GStreamer plugin may not be installed"
+    );
+    return *this;
+  }
   _pipeline->_elements[name] = udpsink;
   _pipeline->_element_order.push_back(udpsink);
 
@@ -342,6 +386,12 @@ GstreamPipelineBuilder& GstreamPipelineBuilder::addUdpSink(
 GstreamPipelineBuilder& GstreamPipelineBuilder::addRtpDepayloader(const std::string& name)
 {
   auto depayloader = gst_element_factory_make("rtph264depay", name.c_str());
+  if (!depayloader) {
+    RCLCPP_FATAL(
+      rclcpp::get_logger("GstreamPipelineBuilder"), "failed to create 'rtph264depay' element - GStreamer plugin may not be installed"
+    );
+    return *this;
+  }
   _pipeline->_elements[name] = depayloader;
   _pipeline->_element_order.push_back(depayloader);
 
@@ -351,6 +401,12 @@ GstreamPipelineBuilder& GstreamPipelineBuilder::addRtpDepayloader(const std::str
 GstreamPipelineBuilder& GstreamPipelineBuilder::addH264Parser(const std::string& name)
 {
   auto parser = gst_element_factory_make("h264parse", name.c_str());
+  if (!parser) {
+    RCLCPP_FATAL(
+      rclcpp::get_logger("GstreamPipelineBuilder"), "failed to create 'h264parse' element - GStreamer plugin may not be installed"
+    );
+    return *this;
+  }
   _pipeline->_elements[name] = parser;
   _pipeline->_element_order.push_back(parser);
 
@@ -360,6 +416,12 @@ GstreamPipelineBuilder& GstreamPipelineBuilder::addH264Parser(const std::string&
 GstreamPipelineBuilder& GstreamPipelineBuilder::addDecoderH264(const std::string& name)
 {
   auto decoder = gst_element_factory_make("avdec_h264", name.c_str());
+  if (!decoder) {
+    RCLCPP_FATAL(
+      rclcpp::get_logger("GstreamPipelineBuilder"), "failed to create 'avdec_h264' element - GStreamer plugin may not be installed"
+    );
+    return *this;
+  }
   _pipeline->_elements[name] = decoder;
   _pipeline->_element_order.push_back(decoder);
 
@@ -369,6 +431,12 @@ GstreamPipelineBuilder& GstreamPipelineBuilder::addDecoderH264(const std::string
 GstreamPipelineBuilder& GstreamPipelineBuilder::addAppSink(const std::string& name)
 {
   auto appsink = gst_element_factory_make("appsink", name.c_str());
+  if (!appsink) {
+    RCLCPP_FATAL(
+      rclcpp::get_logger("GstreamPipelineBuilder"), "failed to create 'appsink' element - GStreamer plugin may not be installed"
+    );
+    return *this;
+  }
   _pipeline->_elements[name] = appsink;
   _pipeline->_element_order.push_back(appsink);
 

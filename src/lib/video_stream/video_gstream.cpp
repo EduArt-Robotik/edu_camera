@@ -204,7 +204,6 @@ void VideoGstreamInput::initialize()
     }
   }
 
-  builder.addAppSink("sink");
   _pipeline = builder.build();
 
   _is_initialized = true;

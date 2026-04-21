@@ -1,5 +1,7 @@
 #include "edu_camera/video_stream/video_stream_client.hpp"
 
+#include <rclcpp/rclcpp.hpp>
+
 #include <chrono>
 
 namespace eduart {
@@ -7,7 +9,8 @@ namespace camera {
 namespace video_stream {
 
 VideoStreamClient::VideoStreamClient(std::unique_ptr<VideoStreamBuilder> builder, rclcpp::Node& node)
-  : _is_initialized(false)
+  : _node(node)
+  , _is_initialized(false)
   , _stream_builder(std::move(builder))
 {
   _client_subscribe_to_stream = node.create_client<edu_camera::srv::SubscribeToStream>(
@@ -21,7 +24,9 @@ VideoStreamClient::VideoStreamClient(std::unique_ptr<VideoStreamBuilder> builder
 VideoStreamClient::~VideoStreamClient()
 {
   shutdown();
-  disconnect();
+  auto future = disconnect();
+
+  rclcpp::spin_until_future_complete(_node.get_node_base_interface(), future);
 }
 
 bool VideoStreamClient::initialize()
@@ -67,19 +72,19 @@ void VideoStreamClient::connect()
     });
 }
 
-void VideoStreamClient::disconnect()
+rclcpp::Client<edu_camera::srv::UnsubscribeFromStream>::SharedFutureAndRequestId VideoStreamClient::disconnect()
 {
   std::scoped_lock lock{_mutex_creating_input};
 
   // if no input stream exists --> do nothing
   if (_stream_input == nullptr) {
-    return;
+    return {{}, 0};
   }
 
   auto request = std::make_shared<edu_camera::srv::UnsubscribeFromStream::Request>();
   request->output_id = _output_id; 
 
-  _client_unsubscribe_from_stream->async_send_request(request,
+  auto future = _client_unsubscribe_from_stream->async_send_request(request,
     [](rclcpp::Client<edu_camera::srv::UnsubscribeFromStream>::SharedFuture future) {
       auto response = future.get();
       if (response->success) {
@@ -94,6 +99,8 @@ void VideoStreamClient::disconnect()
 
   _stream_input = nullptr;
   _output_id = 0;
+
+  return future;
 }
 
 bool VideoStreamClient::receiveFrame(cv::Mat& frame, Codec& codec, const std::chrono::nanoseconds timeout)

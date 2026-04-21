@@ -32,6 +32,12 @@ public:
   virtual bool open() = 0;
   virtual void close() = 0;
   virtual cv::Mat captureFrame() = 0;
+  virtual bool isOpen() const = 0;
+  /**
+   * @brief Get the parameters that are currently applied to the camera. This may differ from the parameters used to open
+   *        the camera, as the camera may not support all requested settings and may apply different settings instead.
+   */
+  virtual Parameter getAppliedParameter() const = 0;
 
   static Parameter get_parameter(const Parameter& default_parameter, rclcpp::Node& ros_node);
 };

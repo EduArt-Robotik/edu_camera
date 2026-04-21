@@ -86,6 +86,22 @@ cv::Mat VideoCameraOpenCV::captureFrame() {
   return frame;
 }
 
+bool VideoCameraOpenCV::isOpen() const {
+  return _camera_device.isOpened();
+}
+
+VideoCamera::Parameter VideoCameraOpenCV::getAppliedParameter() const
+{
+  VideoCamera::Parameter parameter;
+
+  parameter.resolution.width = static_cast<int>(_camera_device.get(cv::CAP_PROP_FRAME_WIDTH));
+  parameter.resolution.height = static_cast<int>(_camera_device.get(cv::CAP_PROP_FRAME_HEIGHT));
+  parameter.fps = static_cast<float>(_camera_device.get(cv::CAP_PROP_FPS));
+  parameter.codec = video_stream::Codec(video_stream::Codec::Type::BGR); // OpenCV always returns frames in BGR format
+
+  return parameter;
+}
+
 VideoCameraOpenCV::Parameter VideoCameraOpenCV::get_parameter(const Parameter& default_parameter, rclcpp::Node& ros_node)
 {
   Parameter parameter = default_parameter;

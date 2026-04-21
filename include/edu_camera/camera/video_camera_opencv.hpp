@@ -26,6 +26,8 @@ public:
   bool open() override;
   void close() override;
   cv::Mat captureFrame() override;
+  bool isOpen() const override;
+  VideoCamera::Parameter getAppliedParameter() const override;
 
   static Parameter get_parameter(const Parameter& default_parameter, rclcpp::Node& ros_node);
 

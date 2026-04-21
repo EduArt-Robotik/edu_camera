@@ -20,18 +20,23 @@ int main(int argc, char *argv[])
       30.0f,
       Codec(Codec::Type::MJPEG)
     },
-    0
+    4
   };
-
   auto node = rclcpp::Node::make_shared("camera_node");
+
+  // camera
   VideoCameraOpenCV camera(camera_parameter);
-  auto builder = std::make_unique<VideoStreamBuilder>();
-  VideoStreamServer stream_server(camera_parameter, std::move(builder), *node);
 
   if (!camera.open()) {
     RCLCPP_FATAL(node->get_logger(), "failed to open camera --> shutting down node...");
     return -1;
   }
+
+  // stream server
+  const auto camera_parameter_applied = camera.getAppliedParameter();
+  auto builder = std::make_unique<VideoStreamBuilder>();
+  VideoStreamServer stream_server(camera_parameter_applied, std::move(builder), *node);
+
   if (!stream_server.initialize()) {
     RCLCPP_FATAL(node->get_logger(), "failed to initialize stream server --> shutting down node...");
     return -1;
@@ -46,7 +51,7 @@ int main(int argc, char *argv[])
 
     // second capture frame from camera and send it to stream server
     const cv::Mat frame = camera.captureFrame();
-    stream_server.sendFrame(frame, camera_parameter.codec);
+    stream_server.sendFrame(frame, camera_parameter_applied.codec);
   }
 
   camera.close();
