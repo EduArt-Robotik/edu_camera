@@ -107,7 +107,7 @@ VideoCameraOpenCV::Parameter VideoCameraOpenCV::get_parameter(const Parameter& d
   Parameter parameter = default_parameter;
   static_cast<VideoCamera::Parameter&>(parameter) = VideoCamera::get_parameter(parameter, ros_node);
 
-  ros_node.get_parameter("device_id", parameter.device_id);
+  ros_node.declare_parameter<int>("device_id", parameter.device_id);
 
   parameter.device_id = ros_node.get_parameter("device_id").as_int();
 

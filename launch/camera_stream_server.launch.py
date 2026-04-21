@@ -20,31 +20,31 @@ def generate_launch_description():
     
   # general
   package = FindPackageShare('edu_camera')
-    
-  # stream client node
-  # stream_client_parameter = PathJoinSubstitution([
-      # package,
-      # 'parameter',
-      # 'stream_client.yaml'
-  # ])
-    
-  stream_client_node = Node(
+
+  # stream server node
+  stream_server_parameter = PathJoinSubstitution([
+      package,
+      'parameter',
+      'stream_server.yaml'
+  ])
+
+  stream_server_node = Node(
     package='edu_camera',
-    executable='stream_client_node',
-    name='stream_client_node',
+    executable='camera_node',
+    name='stream_server_node',
     namespace=edu_robot_namespace,
+    parameters=[
+      stream_server_parameter
+    ],
     remappings=[
       ('subscribe_to_stream', 'stream_server/subscribe_to_stream'),
       ('unsubscribe_from_stream', 'stream_server/unsubscribe_from_stream')
     ],
     output='screen',
     # prefix=['gdbserver localhost:3000'],
-    # parameters=[
-    #   stream_client_parameter
-    # ]
   )
-    
+
   return LaunchDescription([
       edu_robot_namespace_arg,
-      stream_client_node
+      stream_server_node
   ])

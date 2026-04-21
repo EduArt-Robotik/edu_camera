@@ -14,7 +14,7 @@ int main(int argc, char *argv[])
   rclcpp::init(argc, argv);
 
   const QualitySettings settings{10000, 1920, 1080, 30};
-  const VideoCameraOpenCV::Parameter camera_parameter = {
+  const VideoCameraOpenCV::Parameter default_camera_parameter = {
     {
       cv::Size2i(1920, 1080),
       30.0f,
@@ -25,6 +25,7 @@ int main(int argc, char *argv[])
   auto node = rclcpp::Node::make_shared("camera_node");
 
   // camera
+  VideoCameraOpenCV::Parameter camera_parameter = VideoCameraOpenCV::get_parameter(default_camera_parameter, *node);
   VideoCameraOpenCV camera(camera_parameter);
 
   if (!camera.open()) {

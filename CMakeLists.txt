@@ -49,7 +49,7 @@ install(
 install(
   DIRECTORY
     launch
-    # parameter
+    parameter
   DESTINATION share/${PROJECT_NAME}
 )
 
