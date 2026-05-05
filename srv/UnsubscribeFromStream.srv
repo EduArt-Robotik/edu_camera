@@ -1,5 +1,5 @@
 # request
-uint64 output_id
+uint64 output_id # id == 0 will unsubscribe from all streams
 ---
 # response
 bool success

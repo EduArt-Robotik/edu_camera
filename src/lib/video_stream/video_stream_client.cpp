@@ -103,6 +103,35 @@ rclcpp::Client<edu_camera::srv::UnsubscribeFromStream>::SharedFutureAndRequestId
   return future;
 }
 
+void VideoStreamClient::disconnectAll()
+{
+  std::scoped_lock lock{_mutex_creating_input};
+
+  // if no input stream exists --> do nothing
+  if (_stream_input == nullptr) {
+    return;
+  }
+
+  auto request = std::make_shared<edu_camera::srv::UnsubscribeFromStream::Request>();
+  request->output_id = 0; // special case for removing all stream outputs
+
+  _client_unsubscribe_from_stream->async_send_request(request,
+    [](rclcpp::Client<edu_camera::srv::UnsubscribeFromStream>::SharedFuture future) {
+      auto response = future.get();
+      if (response->success) {
+        RCLCPP_INFO(rclcpp::get_logger("VideoStreamClient"), "successfully unsubscribed from all streams");
+      } else {
+        RCLCPP_ERROR(
+          rclcpp::get_logger("VideoStreamClient"), "failed to unsubscribe from all streams: %s",
+          response->message.c_str()
+        );
+      }
+    });
+
+  _stream_input = nullptr;
+  _output_id = 0;
+}
+
 bool VideoStreamClient::receiveFrame(cv::Mat& frame, Codec& codec, const std::chrono::nanoseconds timeout)
 {
   if (!_is_initialized) {

@@ -190,6 +190,14 @@ void VideoStreamServer::removeStreamClient(
     "Received unsubscription request for output_id = %zx", request->output_id
   );
 
+  // handle special case id == 0 --> remove all stream outputs
+  if (request->output_id == 0) {
+    _stream_output.clear();
+    response->success = true;
+    response->message = "Removed all stream outputs.";
+    return;
+  }
+
   // first create hash for identifying stream output
   const auto search_stream = _stream_output.find(request->output_id);
 
