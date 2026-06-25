@@ -13,6 +13,7 @@ target_link_libraries(camera_node
 )
 ament_target_dependencies(camera_node
   "rclcpp"
+  "sensor_msgs"
 )
 
 list(APPEND BUILT_NODES camera_node)
