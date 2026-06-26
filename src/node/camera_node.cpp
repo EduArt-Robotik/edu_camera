@@ -3,6 +3,8 @@
 
 #include <sensor_msgs/msg/image.hpp>
 
+#include <opencv2/opencv.hpp>
+
 #include <rclcpp/rclcpp.hpp>
 
 using eduart::camera::camera::VideoCameraOpenCV;
@@ -10,6 +12,8 @@ using eduart::camera::video_stream::QualitySettings;
 using eduart::camera::video_stream::VideoStreamServer;
 using eduart::camera::video_stream::VideoStreamBuilder;
 using eduart::camera::video_stream::Codec;
+
+using namespace std::chrono_literals;
 
 int main(int argc, char *argv[])
 {
@@ -28,6 +32,7 @@ int main(int argc, char *argv[])
   auto pub_image = node->create_publisher<sensor_msgs::msg::Image>(
     "image", rclcpp::QoS(10).reliable()
   );
+  auto stamp_last_published = node->now();
 
   // camera
   VideoCameraOpenCV::Parameter camera_parameter = VideoCameraOpenCV::get_parameter(
@@ -63,6 +68,14 @@ int main(int argc, char *argv[])
 
     // third publish frame to ROS2 topic if there are subscribers
     if (pub_image->get_subscription_count() > 0) {
+      if (node->now() - stamp_last_published < rclcpp::Duration(1s / camera_parameter.fps)) {
+        continue;
+      }
+      stamp_last_published = node->now();
+      
+      std::vector<std::uint8_t> cv_image_encoded;
+      cv::imencode(".jpg", frame, cv_image_encoded);
+
       sensor_msgs::msg::Image msg;
       msg.header.stamp = node->now();
       msg.header.frame_id = "camera";
@@ -71,7 +84,7 @@ int main(int argc, char *argv[])
       msg.encoding = "jpg";
       msg.is_bigendian = std::endian::native == std::endian::big;
       msg.step = frame.cols * frame.elemSize();
-      msg.data.assign(frame.data, frame.data + frame.total() * frame.elemSize());
+      msg.data = std::move(cv_image_encoded);
       pub_image->publish(msg);
     }
   }

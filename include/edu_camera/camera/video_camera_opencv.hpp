@@ -18,6 +18,7 @@ class VideoCameraOpenCV : public camera::VideoCamera
 public:
   struct Parameter : public camera::VideoCamera::Parameter {
     int device_id = 0;
+    std::string device_path = "";
   };
 
   VideoCameraOpenCV(const Parameter& parameter);

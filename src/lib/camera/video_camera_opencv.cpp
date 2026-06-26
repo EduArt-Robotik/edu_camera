@@ -38,9 +38,16 @@ bool VideoCameraOpenCV::open() {
   if (_camera_device.isOpened()) {
     return true; // Already opened
   }
-  if (_camera_device.open(_parameter.device_id, cv::CAP_V4L2) == false) {
-    // \todo maybe just throw an exception here instead of returning false, since this is a critical error
-    return false; // Failed to open camera
+  if (!_parameter.device_path.empty()) {
+    if (_camera_device.open(_parameter.device_path, cv::CAP_V4L2) == false) {
+      // \todo maybe just throw an exception here instead of returning false, since this is a critical error
+      return false; // Failed to open camera
+    }
+  } else {
+    if (_camera_device.open(_parameter.device_id, cv::CAP_V4L2) == false) {
+      // \todo maybe just throw an exception here instead of returning false, since this is a critical error
+      return false; // Failed to open camera
+    }
   }
 
   _camera_device.set(cv::CAP_PROP_FOURCC, get_codec_prop(_parameter.codec));
@@ -108,8 +115,10 @@ VideoCameraOpenCV::Parameter VideoCameraOpenCV::get_parameter(const Parameter& d
   static_cast<VideoCamera::Parameter&>(parameter) = VideoCamera::get_parameter(parameter, ros_node);
 
   ros_node.declare_parameter<int>("device_id", parameter.device_id);
+  ros_node.declare_parameter<std::string>("device_path", parameter.device_path);
 
   parameter.device_id = ros_node.get_parameter("device_id").as_int();
+  parameter.device_path = ros_node.get_parameter("device_path").as_string();
 
   return parameter;
 }
